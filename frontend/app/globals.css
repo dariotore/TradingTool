@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --bg:        #070c18;
+  --surface:   #0d1829;
+  --card:      #0e1b2e;
+  --card-alt:  #111f36;
+  --border:    #1a2e48;
+  --border-2:  #203860;
+  --text-1:    #e8f0fe;
+  --text-2:    #7a97bb;
+  --text-3:    #3e5872;
+  --background: var(--bg);
+  --foreground: var(--text-1);
+}
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text-1);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: var(--font-geist-sans, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2e5080; }
+
+/* ── Selection ───────────────────────────────────────── */
+::selection { background: rgba(59,130,246,.25); color: #fff; }
+
+/* ── Tabular numbers ─────────────────────────────────── */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* ── Gradient card top accent ────────────────────────── */
+.card-accent-green { border-top: 2px solid #10b981; }
+.card-accent-red   { border-top: 2px solid #ef4444; }
+.card-accent-amber { border-top: 2px solid #f59e0b; }
+.card-accent-slate { border-top: 2px solid #475569; }
+.card-accent-blue  { border-top: 2px solid #3b82f6; }
