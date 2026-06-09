@@ -245,7 +245,7 @@ async def force_forex_refresh():
 
 async def _yahoo_ohlcv(symbol: str, interval: str, limit: int) -> list:
     """Shared Yahoo Finance OHLCV proxy used by forex and crypto endpoints."""
-    yahoo_sym = symbol.replace("=", "%3D")
+    yahoo_sym = symbol
     interval_map = {"1h": ("60m","5d"), "4h": ("60m","14d"), "1d": ("1d","90d"), "1w": ("1wk","2y")}
     y_interval, y_range = interval_map.get(interval, ("60m", "5d"))
     try:

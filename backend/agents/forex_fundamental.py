@@ -98,8 +98,7 @@ async def run(pair_id: str) -> dict:
 async def _yahoo_momentum(pair_id: str, yahoo_sym: str, base: str, quote: str) -> dict:
     """Price-momentum + rate differential for XAU/USD and similar assets."""
     try:
-        sym = yahoo_sym.replace("=", "%3D")
-        url = f"{YAHOO_BASE}/{sym}?interval=1d&range=90d"
+        url = f"{YAHOO_BASE}/{yahoo_sym}?interval=1d&range=90d"
         async with httpx.AsyncClient(timeout=12, headers=YAHOO_HDR) as client:
             r = await client.get(url)
             r.raise_for_status()

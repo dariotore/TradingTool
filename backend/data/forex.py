@@ -36,7 +36,7 @@ FOREX_PAIRS = [
      "keywords": ["audjpy", "australian", "yen", "rba", "boj", "risk sentiment", "risk appetite"]},
     # ── Gold ──────────────────────────────────────────────────────────────────
     {"id": "XAUUSD", "base": "XAU", "quote": "USD", "name": "Oro / Dollaro",
-     "yahoo": "XAUUSD=X", "rank": 12,
+     "yahoo": "GC=F", "rank": 12,
      "keywords": ["gold", "xau", "xauusd", "oro", "precious metal", "bullion",
                   "real yield", "safe haven", "treasury yield", "dxy", "dollar index"]},
 ]
