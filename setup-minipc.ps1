@@ -56,6 +56,18 @@ Write-Host "[3/7] Installa pm2 e pm2-windows-service..." -ForegroundColor Green
 npm install -g pm2 pm2-windows-service
 if (-not $?) { Write-Host "Errore installazione pm2" -ForegroundColor Red; exit 1 }
 
+# Ricarica il PATH nella sessione corrente dopo npm install -g
+# (senza questo pm2.cmd non è trovato subito)
+$env:PATH = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
+            [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Trova pm2.cmd nella cartella npm globale se ancora non è nel PATH
+$npmGlobal = (npm root -g 2>$null) -replace "node_modules$", ""
+if ($npmGlobal -and (Test-Path (Join-Path $npmGlobal "pm2.cmd"))) {
+    $env:PATH += ";$npmGlobal"
+}
+Write-Host "      pm2 pronto: $(pm2 --version 2>$null)"
+
 # ── 4. Setup Python virtualenv e dipendenze ───────────────────────────────────
 Write-Host "[4/7] Setup Python virtualenv..." -ForegroundColor Green
 $venvPath = Join-Path $root "backend\venv"
