@@ -13,7 +13,8 @@ import PriceChart from "@/components/PriceChart";
 import TextAnalysisPanel from "@/components/TextAnalysisPanel";
 import NewsPanel from "@/components/NewsPanel";
 
-const BACKEND       = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+import { getBackend } from "@/lib/backend";
+const BACKEND       = getBackend();
 const WS_URL        = BACKEND.replace(/^http/, "ws") + "/ws";
 const API           = BACKEND;
 const AUTO_REFRESH  = 60; // 1 minute

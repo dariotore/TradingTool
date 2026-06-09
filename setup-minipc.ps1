@@ -57,9 +57,9 @@ npm install -g pm2 pm2-windows-service
 if (-not $?) { Write-Host "Errore installazione pm2" -ForegroundColor Red; exit 1 }
 
 # Ricarica il PATH nella sessione corrente dopo npm install -g
-# (senza questo pm2.cmd non è trovato subito)
-$env:PATH = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
-            [System.Environment]::GetEnvironmentVariable("Path","User")
+$machinePath = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+$userPath    = [System.Environment]::GetEnvironmentVariable("Path","User")
+$env:PATH    = "$machinePath;$userPath"
 
 # Trova pm2.cmd nella cartella npm globale se ancora non è nel PATH
 $npmGlobal = (npm root -g 2>$null) -replace "node_modules$", ""

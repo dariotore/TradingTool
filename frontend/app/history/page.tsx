@@ -13,7 +13,8 @@ import {
   ResponsiveContainer, CartesianGrid, Cell,
 } from "recharts";
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+import { getBackend } from "@/lib/backend";
+const BACKEND = getBackend();
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

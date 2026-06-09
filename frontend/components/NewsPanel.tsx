@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Newspaper, X, ChevronRight, ExternalLink, Loader2, AlertCircle } from "lucide-react";
+import { getBackend } from "@/lib/backend";
 
 interface Article {
   title: string;
@@ -37,8 +38,7 @@ function ArticleModal({ article, onClose }: { article: Article; onClose: () => v
       setError("URL non disponibile per questo articolo.");
       return;
     }
-    const backend = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
-    fetch(`${backend}/api/article?url=${encodeURIComponent(article.url)}`)
+    fetch(`${getBackend()}/api/article?url=${encodeURIComponent(article.url)}`)
       .then(async r => {
         if (!r.ok) {
           const body = await r.json().catch(() => ({}));

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+import { getBackend } from "@/lib/backend";
 
 interface Candle { ts: number; c: number; }
 
@@ -63,7 +64,7 @@ export default function PriceChart({
     setData([]);
 
     let url: string;
-    const backend = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+    const backend = getBackend();
     if (source === "forex") {
       url = `${backend}/api/forex/ohlcv?symbol=${encodeURIComponent(symbol)}&interval=${tf.interval}&limit=${tf.limit}`;
     } else if (source === "commodity") {
