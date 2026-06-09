@@ -36,9 +36,13 @@ async def run(pair_id: str) -> dict:
         kelly   = _kelly_size(returns)
         score   = _compute_risk_score(vol_daily, max_dd, sortino)
 
-        sl_pips  = round(atr_pips * 1.5)
-        tp_pips  = round(atr_pips * 2.5)
-        pip      = 1 / _pip_factor(pair_id)
+        # SL/TP calibrati su 0.5/1.0× ATR giornaliero per segnali orari (R:R 1:2)
+        # Daily ATR × 1.5/2.5 era troppo ampio per intraday — ridotto di 3×
+        pip     = 1 / _pip_factor(pair_id)
+        min_sl  = 10 if ("JPY" in pair_id or "XAU" in pair_id) else 15
+        min_tp  = 20 if ("JPY" in pair_id or "XAU" in pair_id) else 25
+        sl_pips = max(min_sl, round(atr_pips * 0.5))
+        tp_pips = max(min_tp, round(atr_pips * 1.0))
         sl_price = round(last_close - sl_pips * pip, 5)
         tp_price = round(last_close + tp_pips * pip, 5)
 
@@ -88,7 +92,9 @@ def _wilder_atr(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14) 
 
 
 def _pip_factor(pair_id: str) -> float:
-    return 100 if "JPY" in pair_id else 10000
+    if "XAU" in pair_id: return 100    # oro: 1 pip = $0.01
+    if "JPY" in pair_id: return 100    # yen: 1 pip = ¥0.01
+    return 10000                        # majors: 1 pip = 0.0001
 
 
 def _sharpe(returns: pd.Series, annual_periods: int = ANNUAL_PERIODS) -> float:

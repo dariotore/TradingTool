@@ -34,15 +34,20 @@ async def run(symbol: str) -> dict:
         kelly_pct  = _kelly_size(returns)
         score      = _compute_risk_score(volatility, max_dd, sortino)
 
-        # ATR-based SL/TP: convert hourly volatility to daily equivalent
-        atr_daily = volatility * math.sqrt(24)
+        # SL/TP calibrati sulla volatilità oraria (NON daily — troppo ampia per segnali 1h)
+        # Floor: evita SL/TP irrisori in mercati piatti
+        # Cap: evita SL/TP assurdi in mercati iper-volatili
+        # Rapporto R:R 1:1.67 (SL 1.5×vol → TP 2.5×vol)
+        atr_daily = volatility * math.sqrt(24)   # solo per display
+        sl_pct = max(0.005, min(0.030, volatility * 1.5))   # 0.5% – 3.0%
+        tp_pct = max(0.008, min(0.050, volatility * 2.5))   # 0.8% – 5.0%
 
         return {
             "agent": "risk",
             "symbol": symbol,
             "score": score,
             "details": {
-                "volatility_daily_pct":  round(volatility * 100, 2),
+                "volatility_hourly_pct": round(volatility * 100, 3),
                 "volatility_annual_pct": round(vol_annual * 100, 2),
                 "atr_daily_pct":         round(atr_daily * 100, 2),
                 "max_drawdown_pct":      round(max_dd * 100, 2),
@@ -50,8 +55,10 @@ async def run(symbol: str) -> dict:
                 "sortino_ratio":         sortino,
                 "var_95_pct":            var95,
                 "calmar_ratio":          calmar,
-                "suggested_stop_loss":   round(last_close * (1 - atr_daily * 1.5), 2),
-                "suggested_take_profit": round(last_close * (1 + atr_daily * 2.5), 2),
+                "suggested_stop_loss":   round(last_close * (1 - sl_pct), 2),
+                "suggested_take_profit": round(last_close * (1 + tp_pct), 2),
+                "sl_pct":                round(sl_pct * 100, 2),
+                "tp_pct":                round(tp_pct * 100, 2),
                 "position_size_pct":     kelly_pct,
                 "risk_level":            _risk_label(volatility),
             },
