@@ -1,43 +1,24 @@
 @echo off
-REM Script per avviare Backend e Frontend contemporaneamente
-REM Questo script apre due finestre separate: una per il backend e una per il frontend
+cd /d C:\Projects\TradingTool
 
-echo.
-echo ========================================================
-echo      AVVIO COMPLETO - Trading Platform
-echo      Backend + Frontend in due finestre separate
-echo ========================================================
-echo.
+:: Crea cartella logs se non esiste
+if not exist "C:\Projects\TradingTool\logs" mkdir "C:\Projects\TradingTool\logs"
+set LOG=C:\Projects\TradingTool\logs\startup.log
 
-setlocal enabledelayedexpansion
+echo [%DATE% %TIME%] Avvio TradingTool... >> %LOG%
 
-REM Ottieni il percorso della cartella corrente
-set SCRIPT_DIR=%~dp0
+:: Aggiungi npm global al PATH (Task Scheduler non lo include automaticamente)
+set PATH=%PATH%;%APPDATA%\npm;C:\Program Files\nodejs
 
-echo [1/2] Avvio Backend in una nuova finestra...
-start "Trading Platform - Backend" "%SCRIPT_DIR%start-backend.bat"
-timeout /t 2 /nobreak >nul
+:: Verifica che pm2 sia trovato
+where pm2 >> %LOG% 2>&1
+if errorlevel 1 (
+    echo [%DATE% %TIME%] ERRORE: pm2 non trovato nel PATH >> %LOG%
+    exit /b 1
+)
 
-echo [2/2] Avvio Frontend in una nuova finestra...
-start "Trading Platform - Frontend" "%SCRIPT_DIR%start-frontend.bat"
+:: Avvia pm2
+pm2 start C:\Projects\TradingTool\ecosystem.config.js >> %LOG% 2>&1
+pm2 save >> %LOG% 2>&1
 
-echo.
-echo ========================================================
-echo               [OK] SERVIZI IN AVVIO
-echo ========================================================
-echo.
-echo Controlla le due nuove finestre nel taskbar:
-echo   - "Trading Platform - Backend"
-echo   - "Trading Platform - Frontend"
-echo.
-echo URL da aprire nel browser:
-echo   http://localhost:3000
-echo.
-echo API Docs (se disponibili):
-echo   http://localhost:8000/docs
-echo.
-echo Premi una freccia per chiudere questa finestra
-echo ========================================================
-echo.
-
-pause
+echo [%DATE% %TIME%] Avvio completato. >> %LOG%

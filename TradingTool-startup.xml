@@ -29,8 +29,7 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>cmd.exe</Command>
-      <Arguments>/c "cd /d C:\Projects\TradingTool &amp;&amp; pm2 start ecosystem.config.js &amp;&amp; pm2 save"</Arguments>
+      <Command>C:\Projects\TradingTool\start-all.bat</Command>
     </Exec>
   </Actions>
 </Task>
