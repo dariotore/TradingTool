@@ -1,11 +1,12 @@
 const path = require("path");
 const root = __dirname;
+const isWin = process.platform === "win32";
 
 module.exports = {
   apps: [
     {
       name: "trading-backend",
-      script: path.join(root, "backend", "start-pm2.bat"),
+      script: path.join(root, "backend", isWin ? "start-pm2.bat" : "start-pm2.sh"),
       cwd: path.join(root, "backend"),
       watch: false,
 
