@@ -283,7 +283,7 @@ export default function PortfolioPage() {
         </button>
       </header>
 
-      <div className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
+      <div className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5 pb-20 md:pb-6">
 
         {/* ── Hero equity ── */}
         <div className={`rounded-2xl border p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${

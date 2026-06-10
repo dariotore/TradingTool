@@ -135,7 +135,7 @@ export default function InfoPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 py-6 max-w-2xl mx-auto w-full flex flex-col gap-4">
+      <div className="flex-1 overflow-auto px-4 py-6 max-w-2xl mx-auto w-full flex flex-col gap-4 pb-20 md:pb-8">
 
         {/* Intro card */}
         <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-xl p-5">

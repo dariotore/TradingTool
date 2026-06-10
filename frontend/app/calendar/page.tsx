@@ -47,12 +47,6 @@ const COUNTRY_CFG: Record<string, { flag: string; color: string }> = {
 
 const KEY_CURRENCIES = new Set(Object.keys(COUNTRY_CFG));
 
-const WEEK_LABELS: Record<Week, string> = {
-  last: "Settimana scorsa",
-  this: "Questa settimana",
-  next: "Settimana prossima",
-};
-
 function fmt(isoDate: string, opts: Intl.DateTimeFormatOptions): string {
   try { return new Date(isoDate).toLocaleString("it-IT", { timeZone: "Europe/Rome", ...opts }); }
   catch { return "—"; }
@@ -127,15 +121,14 @@ export default function CalendarPage() {
       }));
   }, [filtered, today, tomorrow]);
 
-  const weekIdx = WEEKS.indexOf(week);
-
+  const weekIdx  = WEEKS.indexOf(week);
   const highCount = useMemo(() => filtered.filter(e => e.impact === "High").length, [filtered]);
 
   return (
     <div className="min-h-screen bg-[#070c18] text-white flex flex-col">
 
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#1a2e48] bg-[#070c18]/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-[#1a2e48] bg-[#070c18]/90 backdrop-blur-sm sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-slate-400 hover:text-white hover:bg-[#111d30] border border-[#1a2e48] transition-all">
             <ArrowLeft size={12} /> Dashboard
@@ -155,7 +148,7 @@ export default function CalendarPage() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 py-4 max-w-5xl mx-auto w-full flex flex-col gap-4">
+      <div className="flex-1 overflow-auto px-3 sm:px-4 py-4 max-w-5xl mx-auto w-full flex flex-col gap-4 pb-20 md:pb-6">
 
         {/* Week navigation */}
         <div className="flex items-center justify-between bg-[#0e1b2e] border border-[#1a2e48] rounded-xl px-3 py-2">
@@ -164,10 +157,10 @@ export default function CalendarPage() {
             disabled={weekIdx === 0 || loading}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-[#1a2e48] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronLeft size={13} /> <span className="hidden sm:inline">Precedente</span>
+            <ChevronLeft size={13} /> <span className="hidden xs:inline">Prec.</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {WEEKS.map((w) => (
               <button
                 key={w}
@@ -188,7 +181,7 @@ export default function CalendarPage() {
             disabled={weekIdx === WEEKS.length - 1 || loading}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-[#1a2e48] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <span className="hidden sm:inline">Prossima</span> <ChevronRight size={13} />
+            <span className="hidden xs:inline">Prox.</span> <ChevronRight size={13} />
           </button>
         </div>
 
@@ -213,7 +206,8 @@ export default function CalendarPage() {
           </div>
           {!loading && !error && (
             <span className="text-[10px] text-slate-600">
-              {filtered.length} eventi · {highCount} ad alto impatto
+              {filtered.length} eventi
+              {highCount > 0 && <span className="text-red-400/70"> · {highCount} alto impatto</span>}
             </span>
           )}
         </div>
@@ -224,7 +218,7 @@ export default function CalendarPage() {
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4 space-y-2 animate-pulse">
                 <div className="h-4 w-40 bg-[#1a2e48] rounded" />
-                {[1, 2, 3].map(j => <div key={j} className="h-12 bg-[#1a2e48] rounded" />)}
+                {[1, 2, 3].map(j => <div key={j} className="h-14 bg-[#1a2e48] rounded" />)}
               </div>
             ))}
           </div>
@@ -235,10 +229,8 @@ export default function CalendarPage() {
             <p className="text-xs text-slate-500 max-w-xs text-center">
               La fonte dati (Forex Factory) potrebbe non essere raggiungibile dalla VPS.
             </p>
-            <button
-              onClick={() => fetchEvents(week)}
-              className="mt-2 px-4 py-2 rounded-lg text-xs font-semibold border border-[#1a2e48] text-slate-300 hover:text-white transition-all"
-            >
+            <button onClick={() => fetchEvents(week)}
+              className="mt-2 px-4 py-2 rounded-lg text-xs font-semibold border border-[#1a2e48] text-slate-300 hover:text-white transition-all">
               Riprova
             </button>
           </div>
@@ -279,61 +271,66 @@ export default function CalendarPage() {
                     const miss    = actNum !== null && foreNum !== null && actNum < foreNum;
 
                     return (
-                      <div key={i} className="flex items-stretch gap-0 hover:bg-[#111d30] transition-colors group">
+                      <div key={i} className="flex items-stretch hover:bg-[#111d30] transition-colors group">
                         {/* Impact bar */}
                         <div className={`w-0.5 shrink-0 ${imp.bar} opacity-60`} />
 
-                        <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
-                          {/* Time */}
-                          <div className="w-10 shrink-0 text-center">
-                            <Clock size={9} className="text-slate-700 mx-auto mb-0.5" />
-                            <span className="text-[10px] font-mono tabular text-slate-400 leading-none">
-                              {fmt(ev.date, { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-
-                          {/* Flag + currency */}
-                          <div className="w-10 shrink-0 text-center">
-                            <div className="text-[15px] leading-tight">{ctry?.flag ?? "🌐"}</div>
-                            <span className={`text-[9px] font-bold leading-none ${ctry?.color ?? "text-slate-400"}`}>{ev.country}</span>
-                          </div>
-
-                          {/* Title + impact badge */}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] font-semibold text-slate-200 leading-snug truncate">{ev.title}</p>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${imp.bg} ${imp.text} ${imp.border}`}>
-                                {imp.label}
+                        <div className="flex-1 px-3 sm:px-4 py-3 min-w-0">
+                          {/* Main row: time + flag + title + values */}
+                          <div className="flex items-start gap-2.5 sm:gap-3">
+                            {/* Time */}
+                            <div className="w-9 shrink-0 text-center pt-0.5">
+                              <Clock size={9} className="text-slate-700 mx-auto mb-0.5" />
+                              <span className="text-[10px] font-mono tabular text-slate-400 leading-none">
+                                {fmt(ev.date, { hour: "2-digit", minute: "2-digit" })}
                               </span>
                             </div>
-                          </div>
 
-                          {/* Values */}
-                          <div className="flex items-center gap-4 shrink-0">
-                            {ev.previous && (
-                              <div className="text-right hidden lg:block">
-                                <div className="text-[9px] text-slate-600 mb-0.5">Prec.</div>
-                                <div className="text-[11px] font-mono tabular text-slate-500">{ev.previous}</div>
-                              </div>
-                            )}
-                            {ev.forecast && (
-                              <div className="text-right hidden sm:block">
-                                <div className="text-[9px] text-slate-600 mb-0.5">Prev.</div>
-                                <div className="text-[11px] font-mono tabular text-slate-300">{ev.forecast}</div>
-                              </div>
-                            )}
-                            {hasAct ? (
-                              <div className="text-right min-w-[50px]">
-                                <div className="text-[9px] text-slate-600 mb-0.5">Attuale</div>
-                                <div className={`text-[12px] font-bold font-mono tabular ${beat ? "text-emerald-400" : miss ? "text-red-400" : "text-white"}`}>
-                                  {ev.actual}
-                                  {beat && <span className="text-[8px] ml-0.5">▲</span>}
-                                  {miss && <span className="text-[8px] ml-0.5">▼</span>}
+                            {/* Flag + currency */}
+                            <div className="w-8 sm:w-10 shrink-0 text-center pt-0.5">
+                              <div className="text-[14px] sm:text-[15px] leading-tight">{ctry?.flag ?? "🌐"}</div>
+                              <span className={`text-[9px] font-bold leading-none ${ctry?.color ?? "text-slate-400"}`}>{ev.country}</span>
+                            </div>
+
+                            {/* Title + impact + values */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] sm:text-xs font-semibold text-slate-200 leading-snug">{ev.title}</p>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border inline-block mt-1 ${imp.bg} ${imp.text} ${imp.border}`}>
+                                    {imp.label}
+                                  </span>
+                                </div>
+
+                                {/* Values grid — always visible, responsive sizing */}
+                                <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                                  {ev.previous && (
+                                    <div className="text-right">
+                                      <div className="text-[8px] sm:text-[9px] text-slate-600 mb-0.5">Prec.</div>
+                                      <div className="text-[10px] sm:text-[11px] font-mono tabular text-slate-500">{ev.previous}</div>
+                                    </div>
+                                  )}
+                                  {ev.forecast && (
+                                    <div className="text-right">
+                                      <div className="text-[8px] sm:text-[9px] text-slate-600 mb-0.5">Prev.</div>
+                                      <div className="text-[10px] sm:text-[11px] font-mono tabular text-slate-300">{ev.forecast}</div>
+                                    </div>
+                                  )}
+                                  <div className="text-right min-w-[44px]">
+                                    <div className="text-[8px] sm:text-[9px] text-slate-600 mb-0.5">Attuale</div>
+                                    {hasAct ? (
+                                      <div className={`text-[11px] sm:text-[12px] font-bold font-mono tabular ${beat ? "text-emerald-400" : miss ? "text-red-400" : "text-white"}`}>
+                                        {ev.actual}
+                                        {beat && <span className="text-[8px] ml-0.5">▲</span>}
+                                        {miss && <span className="text-[8px] ml-0.5">▼</span>}
+                                      </div>
+                                    ) : (
+                                      <div className="text-[10px] text-slate-700">—</div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            ) : (
-                              <div className="min-w-[50px] text-right text-[10px] text-slate-700">—</div>
-                            )}
+                            </div>
                           </div>
                         </div>
                       </div>

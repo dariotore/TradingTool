@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   BarChart2, TrendingUp, Shield, Activity,
-  Wifi, WifiOff, TrendingDown, Minus,
+  WifiOff, TrendingDown, Minus,
   RefreshCw, Clock, Menu, X, History, AlertTriangle,
   Bell, Users, LayoutGrid, Star, EyeOff, Eye,
   Briefcase, CalendarDays, BookOpen,
@@ -659,10 +659,19 @@ export default function Dashboard() {
               </button>
             </div>
             <ModeToggle mode={mode} onChange={handleModeChange} />
-            <div className="flex-1 overflow-y-auto py-1">
+            <div className="flex-1 overflow-y-auto min-h-0 py-1">
               <AssetList assets={assets} allData={allData} activeId={activeId} isForex={isForex} onSelect={handleSelect} onRefresh={triggerRefresh} refreshing={refreshing}
                 pinned={pinned} hidden={hidden} showHidden={showHidden}
                 onTogglePin={togglePin} onToggleHide={toggleHide} onToggleShowHidden={() => setShowHidden(p => !p)} />
+            </div>
+            {/* Page links in mobile drawer */}
+            <div className="shrink-0 border-t border-[#1a2e48] p-3 flex flex-col gap-1">
+              <Link href="/calendar" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-[#111d30] transition-colors">
+                <CalendarDays size={12} /> Calendario Economico
+              </Link>
+              <Link href="/info" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-[#111d30] transition-colors">
+                <BookOpen size={12} /> Guida alla piattaforma
+              </Link>
             </div>
           </aside>
         </div>
@@ -782,7 +791,7 @@ export default function Dashboard() {
             </div>
 
               {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-16 md:pb-0">
                 {refreshing && (
                   <div className="mx-4 mt-4 flex items-center gap-2.5 px-4 py-2.5 bg-blue-500/8 border border-blue-500/20 rounded-xl text-xs text-blue-300">
                     <RefreshCw size={12} className="animate-spin shrink-0" />

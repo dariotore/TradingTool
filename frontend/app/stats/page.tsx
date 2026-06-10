@@ -182,7 +182,7 @@ export default function StatsPage() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 py-5 max-w-7xl mx-auto w-full flex flex-col gap-5">
+      <div className="flex-1 overflow-auto px-4 py-5 max-w-7xl mx-auto w-full flex flex-col gap-5 pb-20 md:pb-6">
 
         {/* ── Backtest KPI cards ──────────────────────────────────────────── */}
         {noData ? (
@@ -334,7 +334,7 @@ export default function StatsPage() {
               <p className="text-[11px] text-slate-500">Nessun dato ancora — raccolto dopo i primi outcome</p>
             </div>
           ) : (
-            <div className="overflow-auto">
+            <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
                 <thead className="border-b border-[#1a2e48] bg-[#080f1e]">
                   <tr>
@@ -401,9 +401,9 @@ export default function StatsPage() {
               <p className="text-[11px] text-slate-500">Nessun dato ancora — min. 5 segnali valutati per asset</p>
             </div>
           ) : (
-            <div className="overflow-auto max-h-[420px]">
+            <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
-                <thead className="sticky top-0 border-b border-[#1a2e48] bg-[#080f1e] z-10">
+                <thead className="border-b border-[#1a2e48] bg-[#080f1e]">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Asset</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Regime</th>
@@ -449,9 +449,9 @@ export default function StatsPage() {
               <DollarSign size={14} className="text-emerald-400" />
               <span className="text-xs font-bold text-slate-300">Rendimento per Asset (backtest)</span>
             </div>
-            <div className="overflow-auto max-h-[320px]">
+            <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs">
-                <thead className="sticky top-0 border-b border-[#1a2e48] bg-[#080f1e] z-10">
+                <thead className="border-b border-[#1a2e48] bg-[#080f1e]">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Asset</th>
                     <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Trade</th>

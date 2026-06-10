@@ -230,7 +230,7 @@ export default function OverviewPage() {
         </div>
       </header>
 
-      <div className="flex-1 px-4 py-4 max-w-[1600px] mx-auto w-full flex flex-col gap-4">
+      <div className="flex-1 overflow-auto px-4 py-4 max-w-[1600px] mx-auto w-full flex flex-col gap-4 pb-20 md:pb-6">
 
         {/* Mode tabs */}
         <div className="flex items-center gap-1 bg-[#0e1b2e] border border-[#1a2e48] p-1 rounded-lg self-start">
