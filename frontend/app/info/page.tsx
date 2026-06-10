@@ -122,7 +122,7 @@ function IndicatorRow({ name, short, desc }: { name: string; short: string; desc
 
 export default function InfoPage() {
   return (
-    <div className="min-h-screen bg-[#070c18] text-white flex flex-col">
+    <div className="h-full bg-[#070c18] text-white flex flex-col">
 
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-[#1a2e48] bg-[#070c18]/90 backdrop-blur-sm sticky top-0 z-10">

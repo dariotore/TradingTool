@@ -260,7 +260,7 @@ export default function PortfolioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070c18] text-white flex flex-col">
+    <div className="h-full bg-[#070c18] text-white flex flex-col">
 
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-[#1a2e48] bg-[#070c18]/90 backdrop-blur-sm sticky top-0 z-10">
@@ -283,7 +283,7 @@ export default function PortfolioPage() {
         </button>
       </header>
 
-      <div className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5 pb-20 md:pb-6">
+      <div className="flex-1 overflow-auto px-4 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5 pb-20 md:pb-6">
 
         {/* ── Hero equity ── */}
         <div className={`rounded-2xl border p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${

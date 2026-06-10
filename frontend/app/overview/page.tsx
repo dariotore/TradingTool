@@ -179,7 +179,7 @@ export default function OverviewPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#070c18] text-white flex flex-col">
+    <div className="h-full bg-[#070c18] text-white flex flex-col">
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-[#1a2e48] bg-[#070c18]/80 backdrop-blur-sm sticky top-0 z-10">
