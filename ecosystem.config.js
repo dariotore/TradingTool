@@ -15,7 +15,7 @@ module.exports = {
       exp_backoff_restart_delay: 100,
       max_restarts: 999,
       min_uptime: "5s",
-      max_memory_restart: "256M",  // riavvio se Python supera 256MB
+      max_memory_restart: "1024M", // riavvio se Python supera 1024MB
       cron_restart: "0 4 * * *",   // riavvio preventivo ogni notte alle 04:00
 
       // ── Log ────────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ module.exports = {
       exp_backoff_restart_delay: 100,
       max_restarts: 999,
       min_uptime: "5s",
-      max_memory_restart: "512M",  // riavvio se Next.js supera 512MB
+      max_memory_restart: "1024M", // riavvio se Next.js supera 1024MB
       cron_restart: "0 4 * * *",   // riavvio preventivo ogni notte alle 04:00
 
       env: {
