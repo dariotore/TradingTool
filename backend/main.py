@@ -102,10 +102,15 @@ async def _notify_signals(new_data: dict, market: str, name_fn):
 # ── Crypto ─────────────────────────────────────────────────────────
 
 async def run_all_agents(symbol: str) -> dict:
-    fund, tech, n, r = await asyncio.gather(
+    results = await asyncio.gather(
         fundamental.run(symbol), technical.run(symbol),
         news.run(symbol), risk.run(symbol),
+        return_exceptions=True,
     )
+    fund = _safe_agent(results[0], "fundamental", symbol)
+    tech = _safe_agent(results[1], "technical",   symbol)
+    n    = _safe_agent(results[2], "news",         symbol)
+    r    = _safe_agent(results[3], "risk",         symbol)
     synth = await synthesis.run(symbol, [fund, tech, n, r], market="crypto")
     price = tech.get("details", {}).get("close") or fund.get("details", {}).get("current_price")
     change_24h = fund.get("details", {}).get("price_change_24h_pct")
@@ -142,12 +147,27 @@ async def analysis_loop():
 
 # ── Forex ──────────────────────────────────────────────────────────
 
+def _safe_agent(result, agent_name: str, pair_id: str) -> dict:
+    """Wraps an asyncio.gather result that may be an Exception."""
+    if isinstance(result, Exception):
+        msg = str(result).strip() or type(result).__name__
+        return {"agent": agent_name, "symbol": pair_id,
+                "score": 0, "details": {}, "signal": "NEUTRAL", "error": msg}
+    return result
+
+
 async def run_forex_agents(pair_id: str) -> dict:
-    fund, tech, n, r, cot = await asyncio.gather(
+    results = await asyncio.gather(
         forex_fundamental.run(pair_id), forex_technical.run(pair_id),
         forex_news.run(pair_id), forex_risk.run(pair_id),
         forex_cot.run(pair_id),
+        return_exceptions=True,
     )
+    fund = _safe_agent(results[0], "fundamental", pair_id)
+    tech = _safe_agent(results[1], "technical",   pair_id)
+    n    = _safe_agent(results[2], "news",         pair_id)
+    r    = _safe_agent(results[3], "risk",         pair_id)
+    cot  = _safe_agent(results[4], "cot",          pair_id)
     synth   = await synthesis.run(pair_id, [fund, tech, n, r, cot], market="forex")
     details = tech.get("details", {}) if not tech.get("error") else {}
     pair_info = forex_registry.get_by_id(pair_id)

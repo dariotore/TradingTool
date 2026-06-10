@@ -54,7 +54,8 @@ export default function AgentCard({ title, data, icon }: AgentCardProps) {
   const score   = typeof data?.score  === "number" ? data.score  : 0;
   const signal  = typeof data?.signal === "string"  ? data.signal : "NEUTRAL";
   const details = (data?.details ?? {}) as Record<string, unknown>;
-  const error   = data?.error as string | null;
+  const rawErr  = data?.error as string | null | undefined;
+  const error   = rawErr && rawErr.trim().length > 0 ? rawErr : null;
   const meta    = SIGNAL_META[signal] ?? SIGNAL_META.NEUTRAL;
 
   const pct      = Math.round(((score + 1) / 2) * 100);
