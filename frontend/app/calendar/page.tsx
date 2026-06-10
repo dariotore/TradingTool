@@ -148,7 +148,7 @@ export default function CalendarPage() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto px-3 sm:px-4 py-4 max-w-5xl mx-auto w-full flex flex-col gap-4 pb-20 md:pb-6">
+      <div className="flex-1 overflow-auto px-3 sm:px-4 py-4 max-w-5xl mx-auto w-full space-y-4 pb-20 md:pb-6">
 
         {/* Week navigation */}
         <div className="flex items-center justify-between bg-[#0e1b2e] border border-[#1a2e48] rounded-xl px-3 py-2">

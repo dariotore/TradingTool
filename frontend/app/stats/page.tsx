@@ -182,7 +182,7 @@ export default function StatsPage() {
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 py-5 max-w-7xl mx-auto w-full flex flex-col gap-5 pb-20 md:pb-6">
+      <div className="flex-1 overflow-auto px-4 py-5 max-w-7xl mx-auto w-full space-y-5 pb-20 md:pb-6">
 
         {/* ── Backtest KPI cards ──────────────────────────────────────────── */}
         {noData ? (

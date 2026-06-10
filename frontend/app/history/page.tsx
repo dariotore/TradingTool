@@ -398,7 +398,7 @@ export default function HistoryPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 py-5 max-w-7xl mx-auto w-full flex flex-col gap-5 pb-20 md:pb-6">
+      <div className="flex-1 overflow-auto px-4 py-5 max-w-7xl mx-auto w-full space-y-5 pb-20 md:pb-6">
 
         {/* ── Hero stats ─────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

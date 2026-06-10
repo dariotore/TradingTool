@@ -342,7 +342,10 @@ async def _yahoo_ohlcv(symbol: str, interval: str, limit: int) -> list:
 
 @app.get("/api/forex/ohlcv")
 async def forex_ohlcv(symbol: str = Query(...), interval: str = "1h", limit: int = 48):
-    return await _yahoo_ohlcv(symbol, interval, limit)
+    sym_id = symbol.replace("=X", "")
+    pair = next((p for p in forex_registry.FOREX_PAIRS if p["id"] == sym_id), None)
+    yahoo_sym = pair["yahoo"] if pair else symbol
+    return await _yahoo_ohlcv(yahoo_sym, interval, limit)
 
 
 
