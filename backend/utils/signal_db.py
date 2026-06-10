@@ -69,6 +69,25 @@ def init_db() -> None:
                 key   TEXT PRIMARY KEY,
                 value TEXT
             );
+            CREATE TABLE IF NOT EXISTS paper_trades (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol       TEXT NOT NULL,
+                yahoo_symbol TEXT NOT NULL,
+                market       TEXT NOT NULL,
+                direction    TEXT NOT NULL,
+                entry_price  REAL NOT NULL,
+                sl_price     REAL,
+                tp_price     REAL,
+                size_usd     REAL NOT NULL DEFAULT 1000.0,
+                open_time    TEXT NOT NULL,
+                close_time   TEXT,
+                close_price  REAL,
+                close_reason TEXT,
+                pnl_usd      REAL,
+                pnl_pct      REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_pt_symbol ON paper_trades(symbol);
+            CREATE INDEX IF NOT EXISTS idx_pt_status ON paper_trades(close_time);
         """)
         # Migrate existing DBs that pre-date the SL/TP columns
         for col, typ in [("stop_loss", "REAL"), ("take_profit", "REAL")]:
@@ -633,6 +652,90 @@ def get_agent_stats() -> list[dict]:
             "accuracy":       round(co / ev, 3) if ev >= 5 else None,
         })
     return result
+
+
+# ── Paper Trading ────────────────────────────────────────────────────────────
+
+def open_paper_trade(symbol: str, yahoo_symbol: str, market: str,
+                     direction: str, entry_price: float,
+                     sl_price: float | None, tp_price: float | None) -> int:
+    with _conn() as c:
+        cur = c.execute("""
+            INSERT INTO paper_trades
+            (symbol, yahoo_symbol, market, direction, entry_price,
+             sl_price, tp_price, size_usd, open_time)
+            VALUES (?,?,?,?,?,?,?,1000.0,?)
+        """, (symbol, yahoo_symbol, market, direction, entry_price,
+              sl_price, tp_price, datetime.now(timezone.utc).isoformat()))
+        return cur.lastrowid
+
+
+def get_open_paper_trade(symbol: str) -> dict | None:
+    with _conn() as c:
+        row = c.execute("""
+            SELECT * FROM paper_trades WHERE symbol=? AND close_time IS NULL LIMIT 1
+        """, (symbol,)).fetchone()
+        return dict(row) if row else None
+
+
+def get_all_open_paper_trades() -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("""
+            SELECT * FROM paper_trades WHERE close_time IS NULL ORDER BY open_time DESC
+        """).fetchall()
+        return [dict(r) for r in rows]
+
+
+def close_paper_trade(trade_id: int, close_price: float, close_reason: str) -> dict:
+    with _conn() as c:
+        row = c.execute("SELECT * FROM paper_trades WHERE id=?", (trade_id,)).fetchone()
+        if not row or row["close_time"]:
+            return {}
+        entry   = row["entry_price"]
+        size    = float(row["size_usd"] or 1000.0)
+        pnl_pct = ((close_price - entry) / entry * 100
+                   if row["direction"] == "BUY"
+                   else (entry - close_price) / entry * 100)
+        pnl_usd = round(size * pnl_pct / 100, 2)
+        pnl_pct = round(pnl_pct, 4)
+        now     = datetime.now(timezone.utc).isoformat()
+        c.execute("""
+            UPDATE paper_trades
+            SET close_time=?, close_price=?, close_reason=?, pnl_usd=?, pnl_pct=?
+            WHERE id=?
+        """, (now, close_price, close_reason, pnl_usd, pnl_pct, trade_id))
+    return {"pnl_usd": pnl_usd, "pnl_pct": pnl_pct}
+
+
+def get_closed_paper_trades(limit: int = 100) -> list[dict]:
+    with _conn() as c:
+        rows = c.execute("""
+            SELECT * FROM paper_trades WHERE close_time IS NOT NULL
+            ORDER BY close_time DESC LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_portfolio_summary() -> dict:
+    with _conn() as c:
+        open_count  = c.execute(
+            "SELECT COUNT(*) FROM paper_trades WHERE close_time IS NULL"
+        ).fetchone()[0]
+        closed_rows = c.execute(
+            "SELECT pnl_usd FROM paper_trades WHERE close_time IS NOT NULL"
+        ).fetchall()
+    total_pnl = sum(float(r["pnl_usd"] or 0) for r in closed_rows)
+    wins      = sum(1 for r in closed_rows if float(r["pnl_usd"] or 0) > 0)
+    total_cl  = len(closed_rows)
+    return {
+        "open_trades":   open_count,
+        "closed_trades": total_cl,
+        "total_pnl_usd": round(total_pnl, 2),
+        "win_count":     wins,
+        "loss_count":    total_cl - wins,
+        "win_rate":      round(wins / total_cl * 100, 1) if total_cl > 0 else None,
+        "equity":        round(10_000 + total_pnl, 2),
+    }
 
 
 def cleanup_incomplete_signals() -> int:

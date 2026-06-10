@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import {
   BarChart2, TrendingUp, Shield, Activity,
   Wifi, WifiOff, TrendingDown, Minus,
   RefreshCw, Clock, Menu, X, History, AlertTriangle,
-  Bell, Users, LayoutGrid,
+  Bell, Users, LayoutGrid, Star, EyeOff, Eye,
+  Briefcase, CalendarDays,
 } from "lucide-react";
 import AgentCard from "@/components/AgentCard";
 import SynthesisPanel from "@/components/SynthesisPanel";
@@ -116,7 +117,8 @@ function AssetRow({ asset, active, synth, price, change24h, isForex, onClick }: 
   );
 }
 
-function AssetList({ assets, allData, activeId, isForex, onSelect, onRefresh, refreshing }: {
+function AssetList({ assets, allData, activeId, isForex, onSelect, onRefresh, refreshing,
+  pinned, hidden, showHidden, onTogglePin, onToggleHide, onToggleShowHidden }: {
   assets: AssetMeta[];
   allData: AllData;
   activeId: string;
@@ -124,18 +126,33 @@ function AssetList({ assets, allData, activeId, isForex, onSelect, onRefresh, re
   onSelect: (id: string) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  pinned?: Set<string>;
+  hidden?: Set<string>;
+  showHidden?: boolean;
+  onTogglePin?: (id: string) => void;
+  onToggleHide?: (id: string) => void;
+  onToggleShowHidden?: () => void;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    // Auto-scroll active item into view
     if (listRef.current) {
       const activeElement = listRef.current.querySelector("[data-active='true']") as HTMLElement;
-      if (activeElement) {
-        activeElement.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
+      if (activeElement) activeElement.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [activeId]);
+
+  const sortedAssets = useMemo(() => {
+    const sorted = [...assets].sort((a, b) => {
+      const pa = pinned?.has(a.id) ? 0 : hidden?.has(a.id) ? 2 : 1;
+      const pb = pinned?.has(b.id) ? 0 : hidden?.has(b.id) ? 2 : 1;
+      if (pa !== pb) return pa - pb;
+      return a.rank - b.rank;
+    });
+    return showHidden ? sorted : sorted.filter(a => !hidden?.has(a.id));
+  }, [assets, pinned, hidden, showHidden]);
+
+  const hiddenCount = useMemo(() => assets.filter(a => hidden?.has(a.id)).length, [assets, hidden]);
 
   return (
     <div className="flex flex-col gap-0.5 px-1.5">
@@ -160,10 +177,14 @@ function AssetList({ assets, allData, activeId, isForex, onSelect, onRefresh, re
           ? Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-9 rounded-lg bg-[#0e1b2e] animate-pulse mx-1" />
             ))
-          : assets.map(a => {
-              const d = allData[a.id] as { synthesis?: { recommendation?: string }; price?: number; price_change_24h?: number } | undefined;
+          : sortedAssets.map(a => {
+              const d        = allData[a.id] as { synthesis?: { recommendation?: string }; price?: number; price_change_24h?: number } | undefined;
+              const isPinned = pinned?.has(a.id) ?? false;
+              const isHidden = hidden?.has(a.id) ?? false;
               return (
-                <div key={a.id} data-active={a.id === activeId ? "true" : "false"}>
+                <div key={a.id} data-active={a.id === activeId ? "true" : "false"} className="relative group/wl">
+                  {/* Pin accent bar */}
+                  {isPinned && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-amber-400 rounded-r z-10" />}
                   <AssetRow
                     asset={a}
                     active={a.id === activeId}
@@ -173,11 +194,53 @@ function AssetList({ assets, allData, activeId, isForex, onSelect, onRefresh, re
                     isForex={isForex}
                     onClick={() => onSelect(a.id)}
                   />
+                  {/* Hover watchlist controls */}
+                  {(onTogglePin || onToggleHide) && (
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/wl:opacity-100 flex items-center gap-0.5 z-20 bg-[#0e1b2e]/90 rounded px-0.5 transition-opacity">
+                      {onTogglePin && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onTogglePin(a.id); }}
+                          title={isPinned ? "Rimuovi pin" : "Fissa in cima"}
+                          className={`p-1 rounded hover:bg-[#1a2e48] transition-colors ${isPinned ? "text-amber-400" : "text-slate-600 hover:text-amber-400"}`}
+                        >
+                          <Star size={9} fill={isPinned ? "currentColor" : "none"} />
+                        </button>
+                      )}
+                      {onToggleHide && !isHidden && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onToggleHide(a.id); }}
+                          title="Nascondi"
+                          className="p-1 rounded text-slate-600 hover:text-red-400 hover:bg-[#1a2e48] transition-colors"
+                        >
+                          <EyeOff size={9} />
+                        </button>
+                      )}
+                      {onToggleHide && isHidden && (
+                        <button
+                          onClick={e => { e.stopPropagation(); onToggleHide(a.id); }}
+                          title="Mostra"
+                          className="p-1 rounded text-red-400 hover:text-emerald-400 hover:bg-[#1a2e48] transition-colors"
+                        >
+                          <Eye size={9} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })
         }
       </div>
+      {/* Show-hidden toggle */}
+      {hiddenCount > 0 && onToggleShowHidden && (
+        <button
+          onClick={onToggleShowHidden}
+          className="mx-2 my-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] text-slate-500 hover:text-slate-300 border border-dashed border-[#1a2e48] hover:border-[#2a3e58] transition-colors"
+        >
+          {showHidden ? <EyeOff size={9} /> : <Eye size={9} />}
+          {showHidden ? `Nascondi ${hiddenCount}` : `Mostra ${hiddenCount} nascosti`}
+        </button>
+      )}
     </div>
   );
 }
@@ -223,6 +286,9 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState<Notif[]>([]);
   const [notifOpen,      setNotifOpen]    = useState(false);
   const [notifEnabled,   setNotifEnabled] = useState(false);
+  const [pinned,         setPinned]       = useState<Set<string>>(new Set());
+  const [hidden,         setHidden]       = useState<Set<string>>(new Set());
+  const [showHidden,     setShowHidden]   = useState(false);
   const prevRecsRef    = useRef<Record<string, string>>({});
   const notifIdCounter = useRef(0);
   const wsRef          = useRef<WebSocket | null>(null);
@@ -392,6 +458,34 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [lastUpdate]);
 
+  // Load watchlist from localStorage after mount
+  useEffect(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem("wl_pinned") || "[]") as string[];
+      const h = JSON.parse(localStorage.getItem("wl_hidden") || "[]") as string[];
+      if (p.length) setPinned(new Set(p));
+      if (h.length) setHidden(new Set(h));
+    } catch {}
+  }, []);
+
+  const togglePin = useCallback((id: string) => {
+    setPinned(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      localStorage.setItem("wl_pinned", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  const toggleHide = useCallback((id: string) => {
+    setHidden(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      localStorage.setItem("wl_hidden", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
   // URL param navigation (?id=...&market=...) from /overview page
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -466,6 +560,22 @@ export default function Dashboard() {
           >
             <BarChart2 size={11} />
             Stats
+          </Link>
+          {/* Portfolio link */}
+          <Link
+            href="/portfolio"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1a2e48] text-[var(--text-2)] bg-[#0d1829] hover:border-emerald-500/40 hover:text-white transition-all"
+          >
+            <Briefcase size={11} />
+            Portfolio
+          </Link>
+          {/* Calendar link */}
+          <Link
+            href="/calendar"
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1a2e48] text-[var(--text-2)] bg-[#0d1829] hover:border-amber-500/40 hover:text-white transition-all"
+          >
+            <CalendarDays size={11} />
+            Calendario
           </Link>
           {/* Notification bell */}
           <button
@@ -542,7 +652,9 @@ export default function Dashboard() {
             </div>
             <ModeToggle mode={mode} onChange={handleModeChange} />
             <div className="flex-1 overflow-y-auto py-1">
-              <AssetList assets={assets} allData={allData} activeId={activeId} isForex={isForex} onSelect={handleSelect} onRefresh={triggerRefresh} refreshing={refreshing} />
+              <AssetList assets={assets} allData={allData} activeId={activeId} isForex={isForex} onSelect={handleSelect} onRefresh={triggerRefresh} refreshing={refreshing}
+                pinned={pinned} hidden={hidden} showHidden={showHidden}
+                onTogglePin={togglePin} onToggleHide={toggleHide} onToggleShowHidden={() => setShowHidden(p => !p)} />
             </div>
           </aside>
         </div>
@@ -622,7 +734,9 @@ export default function Dashboard() {
             <ModeToggle mode={mode} onChange={handleModeChange} />
           </div>
           <div className="flex-1 overflow-y-auto min-h-0 py-1 px-1">
-            <AssetList assets={assets} allData={allData} activeId={activeId} isForex={isForex} onSelect={handleSelect} onRefresh={triggerRefresh} refreshing={refreshing} />
+            <AssetList assets={assets} allData={allData} activeId={activeId} isForex={isForex} onSelect={handleSelect} onRefresh={triggerRefresh} refreshing={refreshing}
+              pinned={pinned} hidden={hidden} showHidden={showHidden}
+              onTogglePin={togglePin} onToggleHide={toggleHide} onToggleShowHidden={() => setShowHidden(p => !p)} />
           </div>
         </aside>
 

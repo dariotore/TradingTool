@@ -15,11 +15,13 @@ from data import coins as coin_registry
 from data import forex as forex_registry
 from agents import fundamental, technical, news, risk, synthesis
 from agents import forex_technical, forex_fundamental, forex_risk, forex_news, forex_cot
-from utils import telegram, signal_db, outcome_checker
+from utils import telegram, signal_db, outcome_checker, paper_trading
 
 load_dotenv()
 
 AUTO_REFRESH_INTERVAL = 60  # 1 minute
+import time as _time
+_calendar_cache: dict = {"data": [], "fetched_at": 0.0}
 
 active_connections: list[WebSocket] = []
 latest_data:  dict = {}
@@ -40,6 +42,7 @@ async def _outcome_loop():
     while True:
         try:
             await outcome_checker.check_pending_outcomes()
+            await paper_trading.check_paper_trades()
         except Exception:
             pass
         await asyncio.sleep(3600)
@@ -78,6 +81,13 @@ async def _broadcast(payload: str):
         active_connections.remove(ws)
 
 
+def _get_yahoo_sym(symbol: str, market: str) -> str:
+    if market == "crypto":
+        return symbol.replace("USDT", "") + "-USD"
+    pair_info = forex_registry.get_by_id(symbol)
+    return pair_info["yahoo"] if pair_info else symbol + "=X"
+
+
 async def _notify_signals(new_data: dict, market: str, name_fn):
     """Send Telegram alerts for symbols that transition to BUY or SELL."""
     tasks = []
@@ -94,6 +104,33 @@ async def _notify_signals(new_data: dict, market: str, name_fn):
             conf  = synth.get("confidence", 0.5)
             name  = name_fn(symbol) or symbol
             tasks.append(telegram.send_signal(symbol, name, rec, price, sl, tp, conf, market))
+
+        # Paper trading: auto open/close on signal transitions
+        try:
+            price = data.get("price") or 0.0
+            if price > 0:
+                is_act  = rec  in ("BUY", "STRONG_BUY", "SELL", "STRONG_SELL")
+                was_act = prev in ("BUY", "STRONG_BUY", "SELL", "STRONG_SELL")
+                if is_act:
+                    direction = "BUY" if rec in ("BUY", "STRONG_BUY") else "SELL"
+                    existing  = signal_db.get_open_paper_trade(symbol)
+                    if existing and existing["direction"] != direction:
+                        signal_db.close_paper_trade(existing["id"], price, "REVERSE")
+                        existing = None
+                    if not existing and rec != prev:
+                        rd = synth.get("risk_details") or {}
+                        signal_db.open_paper_trade(
+                            symbol, _get_yahoo_sym(symbol, market), market,
+                            direction, price,
+                            rd.get("suggested_stop_loss"),
+                            rd.get("suggested_take_profit"),
+                        )
+                elif was_act:
+                    existing = signal_db.get_open_paper_trade(symbol)
+                    if existing:
+                        signal_db.close_paper_trade(existing["id"], price, "SIGNAL")
+        except Exception:
+            pass
 
         _prev_recs[symbol] = rec
 
@@ -399,6 +436,56 @@ async def get_article(url: str = Query(...)):
     time_el = soup.find("time")
     published = time_el.get("datetime", "") if time_el else ""
     return {"title": title, "paragraphs": paragraphs[:30], "published": published, "source_url": url}
+
+
+@app.get("/api/portfolio")
+async def get_portfolio():
+    return {
+        "summary": signal_db.get_portfolio_summary(),
+        "open":    signal_db.get_all_open_paper_trades(),
+    }
+
+
+@app.get("/api/portfolio/history")
+async def get_portfolio_history(limit: int = 100):
+    return signal_db.get_closed_paper_trades(limit=limit)
+
+
+@app.post("/api/portfolio/close/{trade_id}")
+async def manual_close_trade(trade_id: int):
+    result = await paper_trading.close_trade_now(trade_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Trade non trovato o già chiuso")
+    if result.get("error") == "price_unavailable":
+        raise HTTPException(status_code=502, detail="Impossibile ottenere il prezzo attuale")
+    return result
+
+
+@app.post("/api/portfolio/refresh")
+async def refresh_portfolio():
+    closed = await paper_trading.check_paper_trades()
+    return {
+        "closed":  closed,
+        "summary": signal_db.get_portfolio_summary(),
+        "open":    signal_db.get_all_open_paper_trades(),
+    }
+
+
+@app.get("/api/calendar")
+async def get_calendar():
+    now = _time.time()
+    if now - _calendar_cache["fetched_at"] < 3600 and _calendar_cache["data"]:
+        return _calendar_cache["data"]
+    try:
+        async with httpx.AsyncClient(timeout=15, headers=YAHOO_HEADERS) as client:
+            r = await client.get("https://nfs.faireconomy.media/ff_calendar_thisweek.json")
+            r.raise_for_status()
+            events = r.json()
+        _calendar_cache["data"]       = events
+        _calendar_cache["fetched_at"] = now
+        return events
+    except Exception:
+        return _calendar_cache["data"] or []
 
 
 @app.websocket("/ws")
