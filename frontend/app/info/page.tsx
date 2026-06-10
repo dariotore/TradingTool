@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, ChevronDown, ChevronUp,
+  ArrowLeft, ChevronDown, ChevronUp, RefreshCw,
   LayoutGrid, History, BarChart2, Briefcase, CalendarDays,
   TrendingUp, Shield, Activity, Newspaper, Brain,
-  Star, EyeOff, Zap, RefreshCw, BookOpen,
+  Star, EyeOff, Zap, BookOpen,
   TrendingDown, Minus, AlertTriangle, Info,
 } from "lucide-react";
 

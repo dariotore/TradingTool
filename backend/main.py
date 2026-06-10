@@ -21,7 +21,16 @@ load_dotenv()
 
 AUTO_REFRESH_INTERVAL = 60  # 1 minute
 import time as _time
-_calendar_cache: dict = {"data": [], "fetched_at": 0.0}
+_calendar_cache: dict = {
+    "last": {"data": [], "ts": 0.0},
+    "this": {"data": [], "ts": 0.0},
+    "next": {"data": [], "ts": 0.0},
+}
+_FF_URLS = {
+    "last": "https://nfs.faireconomy.media/ff_calendar_lastweek.json",
+    "this": "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+    "next": "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+}
 
 active_connections: list[WebSocket] = []
 latest_data:  dict = {}
@@ -472,20 +481,23 @@ async def refresh_portfolio():
 
 
 @app.get("/api/calendar")
-async def get_calendar():
+async def get_calendar(week: str = "this"):
+    if week not in _FF_URLS:
+        week = "this"
+    cache = _calendar_cache[week]
     now = _time.time()
-    if now - _calendar_cache["fetched_at"] < 3600 and _calendar_cache["data"]:
-        return _calendar_cache["data"]
+    if now - cache["ts"] < 3600 and cache["data"]:
+        return cache["data"]
     try:
         async with httpx.AsyncClient(timeout=15, headers=YAHOO_HEADERS) as client:
-            r = await client.get("https://nfs.faireconomy.media/ff_calendar_thisweek.json")
+            r = await client.get(_FF_URLS[week])
             r.raise_for_status()
             events = r.json()
-        _calendar_cache["data"]       = events
-        _calendar_cache["fetched_at"] = now
+        cache["data"] = events
+        cache["ts"]   = now
         return events
     except Exception:
-        return _calendar_cache["data"] or []
+        return cache["data"] or []
 
 
 @app.websocket("/ws")
