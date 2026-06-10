@@ -492,15 +492,17 @@ async def get_calendar(week: str = "this"):
     if now - cache["ts"] < 3600 and cache["data"]:
         return cache["data"]
     try:
-        async with httpx.AsyncClient(timeout=15, headers=YAHOO_HEADERS) as client:
+        async with httpx.AsyncClient(timeout=15, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"}) as client:
             r = await client.get(_FF_URLS[week])
             r.raise_for_status()
             events = r.json()
         cache["data"] = events
         cache["ts"]   = now
         return events
-    except Exception:
-        return cache["data"] or []
+    except Exception as e:
+        if cache["data"]:
+            return cache["data"]
+        raise HTTPException(status_code=503, detail=f"Calendario non disponibile: {e}")
 
 
 @app.websocket("/ws")
