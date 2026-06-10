@@ -1,16 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, RefreshCw,
+  ArrowLeft, ChevronDown, RefreshCw,
   LayoutGrid, History, BarChart2, Briefcase, CalendarDays,
   TrendingUp, Shield, Activity, Newspaper, Brain,
   Star, EyeOff, Zap, BookOpen,
   TrendingDown, Minus, AlertTriangle, Info, CheckCircle2,
 } from "lucide-react";
 
-// ── Accordion ─────────────────────────────────────────────────────────────────
+// ── Accordion (details/summary — no React state, no hydration issues) ─────────
 
 function Section({
   icon, title, badge, children, defaultOpen = false,
@@ -21,13 +21,12 @@ function Section({
   children: React.ReactNode;
   defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-[#111d30] transition-colors"
-      >
+    <details
+      open={defaultOpen}
+      className="group bg-[#0e1b2e] border border-[#1a2e48] rounded-xl"
+    >
+      <summary className="flex items-center gap-3 px-5 py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden hover:bg-[#111d30] rounded-xl transition-colors">
         <span className="text-blue-400 shrink-0">{icon}</span>
         <span className="flex-1 text-base font-bold text-white">{title}</span>
         {badge && (
@@ -35,16 +34,12 @@ function Section({
             {badge}
           </span>
         )}
-        {open
-          ? <ChevronUp size={16} className="text-slate-500 shrink-0" />
-          : <ChevronDown size={16} className="text-slate-500 shrink-0" />}
-      </button>
-      {open && (
-        <div className="px-5 pb-6 pt-2 border-t border-[#1a2e48] space-y-4">
-          {children}
-        </div>
-      )}
-    </div>
+        <ChevronDown size={16} className="text-slate-500 shrink-0 transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <div className="px-5 pb-6 pt-2 border-t border-[#1a2e48] space-y-4">
+        {children}
+      </div>
+    </details>
   );
 }
 
