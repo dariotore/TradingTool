@@ -1,6 +1,9 @@
 "use client";
 
 import { TrendingUp, TrendingDown, Minus, ShieldAlert } from "lucide-react";
+import {
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
+} from "recharts";
 
 interface SynthesisData {
   recommendation: string;
@@ -48,6 +51,17 @@ const SIG_COLORS: Record<string, string> = {
   BUY: "text-emerald-400", SELL: "text-red-400",
   NEUTRAL: "text-slate-400", ACCEPTABLE: "text-emerald-400",
   CAUTION: "text-amber-400", HIGH_RISK: "text-red-400",
+};
+
+const RADAR_COLORS: Record<string, string> = {
+  STRONG_BUY: "#6ee7b7", BUY: "#10b981",
+  SELL: "#ef4444",       STRONG_SELL: "#fca5a5",
+  HOLD: "#f59e0b",       AVOID: "#f97316",
+};
+
+const AGENT_LABELS: Record<string, string> = {
+  fundamental: "Fond.", technical: "Tecnica",
+  risk: "Rischio",      news: "News", cot: "COT",
 };
 
 function buildOperativeText(
@@ -194,18 +208,25 @@ export default function SynthesisPanel({
         </div>
       )}
 
-      {/* ── Agent mini-signals ──────────────────────────────────── */}
-      {data.agent_scores && Object.keys(data.agent_scores).length > 0 && (
-        <div className="px-5 pb-4 flex flex-wrap gap-x-4 gap-y-1">
-          {Object.entries(data.agent_scores).map(([name, { signal }]) => (
-            <div key={name} className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${SIG_COLORS[signal]?.replace("text-", "bg-") ?? "bg-slate-400"}`} />
-              <span className="text-[10px] text-[var(--text-3)] capitalize">{name}</span>
-              <span className={`text-[10px] font-semibold ${SIG_COLORS[signal] ?? "text-slate-400"}`}>{signal}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* ── Radar chart agenti ──────────────────────────────────── */}
+      {data.agent_scores && Object.keys(data.agent_scores).length >= 3 && (() => {
+        const radarColor = RADAR_COLORS[data.recommendation] ?? "#64748b";
+        const radarData  = Object.entries(data.agent_scores).map(([k, v]) => ({
+          axis:  AGENT_LABELS[k] ?? k,
+          value: Math.round(((v.score + 1) / 2) * 100),
+        }));
+        return (
+          <div className="px-3 pb-1">
+            <ResponsiveContainer width="100%" height={130}>
+              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="60%">
+                <PolarGrid stroke="#1a3050" />
+                <PolarAngleAxis dataKey="axis" tick={{ fill: "#475569", fontSize: 9 }} />
+                <Radar dataKey="value" stroke={radarColor} fill={radarColor} fillOpacity={0.18} strokeWidth={1.5} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      })()}
 
       {/* ── Reasoning ───────────────────────────────────────────── */}
       <div className="px-5 pb-4 border-t border-[rgba(255,255,255,.05)] pt-3">

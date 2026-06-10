@@ -6,6 +6,7 @@ import {
   BarChart2, TrendingUp, Shield, Activity,
   Wifi, WifiOff, TrendingDown, Minus,
   RefreshCw, Clock, Menu, X, History, AlertTriangle,
+  Bell, Users, LayoutGrid,
 } from "lucide-react";
 import AgentCard from "@/components/AgentCard";
 import SynthesisPanel from "@/components/SynthesisPanel";
@@ -31,6 +32,7 @@ interface AssetMeta {
 
 type SymbolData = Record<string, unknown>;
 type AllData    = Record<string, SymbolData>;
+type Notif      = { id: number; symbol: string; action: string; confidence: number; ts: Date; market: string };
 
 const REC_DOT: Record<string, string> = {
   STRONG_BUY: "bg-emerald-300 ring-1 ring-emerald-400/50",
@@ -218,6 +220,11 @@ export default function Dashboard() {
   const [countdown,   setCountdown]   = useState(AUTO_REFRESH);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [staleSeconds, setStaleSeconds] = useState(0);
+  const [notifications, setNotifications] = useState<Notif[]>([]);
+  const [notifOpen,      setNotifOpen]    = useState(false);
+  const [notifEnabled,   setNotifEnabled] = useState(false);
+  const prevRecsRef    = useRef<Record<string, string>>({});
+  const notifIdCounter = useRef(0);
   const wsRef        = useRef<WebSocket | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mainRef      = useRef<HTMLDivElement | null>(null);
@@ -227,6 +234,24 @@ export default function Dashboard() {
   const assets  = isForex ? forexAssets : cryptoAssets;
 
   const resetCountdown = useCallback(() => setCountdown(AUTO_REFRESH), []);
+
+  const detectChanges = useCallback((data: AllData, market: "crypto" | "forex") => {
+    const fresh: Notif[] = [];
+    for (const [symbol, d] of Object.entries(data)) {
+      const synth = (d as Record<string, unknown>)?.synthesis as { recommendation?: string; confidence?: number } | undefined;
+      const rec   = synth?.recommendation ?? "";
+      const prev  = prevRecsRef.current[symbol] ?? "";
+      if (["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"].includes(rec) && rec !== prev) {
+        fresh.push({ id: ++notifIdCounter.current, symbol, action: rec, confidence: synth?.confidence ?? 0, ts: new Date(), market });
+      }
+      prevRecsRef.current[symbol] = rec;
+    }
+    if (fresh.length === 0) return;
+    setNotifications(prev => [...fresh.reverse(), ...prev].slice(0, 20));
+    if ("Notification" in window && Notification.permission === "granted") {
+      fresh.forEach(n => new Notification(`${n.symbol}: ${n.action}`, { body: `Conf. ${Math.round(n.confidence * 100)}%`, tag: n.symbol }));
+    }
+  }, []);
 
   const triggerRefresh = useCallback(async () => {
     if (refreshing) return;
@@ -301,8 +326,10 @@ export default function Dashboard() {
           if (["refreshing", "forex_refreshing"].includes(msg.type)) {
             setRefreshing(true);
           } else if (msg.type === "update") {
+            detectChanges(msg.data as AllData, "crypto");
             setCryptoData(msg.data); setLastUpdate(new Date()); setRefreshing(false); setCountdown(AUTO_REFRESH);
           } else if (msg.type === "forex_update") {
+            detectChanges(msg.data as AllData, "forex");
             setForexData(msg.data); setLastUpdate(new Date()); setRefreshing(false); setCountdown(AUTO_REFRESH);
           }
         } catch {}
@@ -335,6 +362,16 @@ export default function Dashboard() {
     const t = setInterval(tick, 15_000);
     return () => clearInterval(t);
   }, [lastUpdate]);
+
+  // URL param navigation (?id=...&market=...) from /overview page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlId  = params.get("id");
+    const urlMkt = params.get("market") as Mode | null;
+    if (urlMkt === "crypto" || urlMkt === "forex") setMode(urlMkt);
+    if (urlId) setActiveId(urlId);
+    if ("Notification" in window) setNotifEnabled(Notification.permission === "granted");
+  }, []);
 
   const activeAsset  = assets.find(a => a.id === activeId);
   const current        = allData[activeId] as { agents?: Record<string, SymbolData>; synthesis?: SymbolData; price?: number; price_change_24h?: number } | undefined;
@@ -377,6 +414,14 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Overview link */}
+          <Link
+            href="/overview"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1a2e48] text-[var(--text-2)] bg-[#0d1829] hover:border-blue-500/40 hover:text-white transition-all"
+          >
+            <LayoutGrid size={11} />
+            Overview
+          </Link>
           {/* History link */}
           <Link
             href="/history"
@@ -385,6 +430,19 @@ export default function Dashboard() {
             <History size={11} />
             Storico
           </Link>
+          {/* Notification bell */}
+          <button
+            onClick={() => setNotifOpen(o => !o)}
+            className="relative p-1.5 rounded-lg border border-[#1a2e48] text-[var(--text-3)] hover:text-white hover:bg-[#111d30] transition-all"
+            title="Notifiche segnali"
+          >
+            <Bell size={13} />
+            {notifications.length > 0 && (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-[8px] font-bold text-white flex items-center justify-center leading-none">
+                {notifications.length > 9 ? "9+" : notifications.length}
+              </span>
+            )}
+          </button>
           {/* Refresh */}
           <button
             onClick={triggerRefresh}
@@ -450,6 +508,71 @@ export default function Dashboard() {
               <AssetList assets={assets} allData={allData} activeId={activeId} isForex={isForex} onSelect={handleSelect} onRefresh={triggerRefresh} refreshing={refreshing} />
             </div>
           </aside>
+        </div>
+      )}
+
+      {/* ── Notification dropdown ───────────────────────────────── */}
+      {notifOpen && (
+        <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)}>
+          <div
+            className="absolute right-4 top-12 w-72 bg-[#0a1525] border border-[#1a2e48] rounded-xl shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#1a2e48]">
+              <span className="text-xs font-bold text-white">Notifiche segnali</span>
+              <div className="flex items-center gap-3">
+                {!notifEnabled && (
+                  <button
+                    onClick={async () => {
+                      const p = await Notification.requestPermission();
+                      setNotifEnabled(p === "granted");
+                    }}
+                    className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Abilita push
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button onClick={() => setNotifications([])} className="text-[10px] text-[var(--text-3)] hover:text-white transition-colors">
+                    Svuota
+                  </button>
+                )}
+              </div>
+            </div>
+            {notifications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-1">
+                <Bell size={16} className="text-[var(--text-3)]" />
+                <span className="text-[11px] text-[var(--text-3)]">Nessun segnale recente</span>
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto divide-y divide-[#0d1829]">
+                {notifications.map(n => (
+                  <button
+                    key={n.id}
+                    className="w-full px-4 py-2.5 hover:bg-[#111d30] transition-colors text-left"
+                    onClick={() => {
+                      setMode(n.market as Mode);
+                      setActiveId(n.symbol);
+                      setNotifOpen(false);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${n.action.includes("BUY") ? "bg-emerald-400" : "bg-red-400"}`} />
+                      <span className="font-bold text-xs text-white">{n.symbol}</span>
+                      <span className={`text-[10px] font-semibold ${n.action.includes("BUY") ? "text-emerald-400" : "text-red-400"}`}>
+                        {n.action.replace("_", " ")}
+                      </span>
+                      <span className="ml-auto text-[10px] text-[var(--text-3)] tabular shrink-0">{Math.round(n.confidence * 100)}%</span>
+                    </div>
+                    <div className="text-[9px] text-[var(--text-3)] mt-0.5 pl-3.5">
+                      {n.ts.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                      {" · "}{n.market}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -541,12 +664,13 @@ export default function Dashboard() {
                     <NewsPanel data={agents?.news as Parameters<typeof NewsPanel>[0]["data"]} />
                   </div>
 
-                  {/* Agent cards — 4 columns (fundamental / technical / risk / news) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  {/* Agent cards */}
+                  <div className={`grid gap-3 sm:gap-4 ${isForex ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"}`}>
                     <AgentCard title="Fondamentale" agent="fundamental" data={agents?.fundamental ?? null} icon={<BarChart2 size={13} />} />
                     <AgentCard title="Tecnica"      agent="technical"   data={agents?.technical ?? null}   icon={<TrendingUp size={13} />} />
                     <AgentCard title="Rischio"      agent="risk"        data={agents?.risk ?? null}        icon={<Shield size={13} />} />
                     <AgentCard title="Notizie"      agent="news"        data={agents?.news ?? null}        icon={<Activity size={13} />} />
+                    {isForex && <AgentCard title="COT" agent="cot" data={agents?.cot ?? null} icon={<Users size={13} />} />}
                   </div>
 
                 </div>
