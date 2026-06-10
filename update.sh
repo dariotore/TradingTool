@@ -11,7 +11,7 @@ echo "→ Aggiornamento dipendenze Python..."
 echo "→ Build frontend..."
 cd "$ROOT/frontend"
 npm install --silent
-npm run build
+NODE_OPTIONS='--max-old-space-size=512' npm run build
 cd "$ROOT"
 
 echo "→ Riavvio pm2..."
