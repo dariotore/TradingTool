@@ -602,6 +602,39 @@ def get_backtest_summary(market: str | None = None) -> dict:
     }
 
 
+def get_agent_stats() -> list[dict]:
+    """Per-agent accuracy: how often each agent's directional call matched the 24h outcome."""
+    with _conn() as c:
+        rows = c.execute("""
+            SELECT ag.agent,
+                   COUNT(DISTINCT s.id)                                          AS signals_total,
+                   COUNT(o.id)                                                   AS evaluated,
+                   SUM(CASE
+                       WHEN (ag.signal IN ('BUY','STRONG_BUY')   AND o.price_change_pct >  0.3)
+                         OR (ag.signal IN ('SELL','STRONG_SELL') AND o.price_change_pct < -0.3)
+                       THEN 1 ELSE 0 END)                                        AS correct
+            FROM agent_signals ag
+            JOIN signals s  ON s.id = ag.signal_id
+            LEFT JOIN outcomes o
+                   ON o.signal_id = s.id AND o.check_period = '24h'
+            WHERE ag.signal NOT IN ('NEUTRAL','HOLD','AVOID')
+            GROUP BY ag.agent
+            ORDER BY ag.agent
+        """).fetchall()
+    result = []
+    for r in rows:
+        ev = int(r["evaluated"] or 0)
+        co = int(r["correct"] or 0)
+        result.append({
+            "agent":          r["agent"],
+            "signals_total":  int(r["signals_total"] or 0),
+            "evaluated":      ev,
+            "correct":        co,
+            "accuracy":       round(co / ev, 3) if ev >= 5 else None,
+        })
+    return result
+
+
 def cleanup_incomplete_signals() -> int:
     """Delete signals without SL/TP (pre-tracking records) and their outcomes."""
     with _conn() as c:

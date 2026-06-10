@@ -7,6 +7,7 @@ import {
   CheckCircle2, XCircle, Clock, SlidersHorizontal,
   Trash2, Target, BarChart3, Zap, Activity, Search,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  BarChart2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartTooltip,
@@ -401,6 +402,13 @@ export default function HistoryPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/stats"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1a2e48] text-[var(--text-2)] bg-[#0d1829] hover:border-violet-500/40 hover:text-white transition-all"
+          >
+            <BarChart2 size={11} />
+            Stats
+          </Link>
           <button
             onClick={handleCleanup}
             disabled={cleanupBusy}

@@ -36,12 +36,13 @@ YAHOO_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleW
 
 async def _outcome_loop():
     """Hourly background task: evaluate signal outcomes and feed the learning system."""
+    await asyncio.sleep(60)   # short delay on startup, then run immediately
     while True:
-        await asyncio.sleep(3600)
         try:
             await outcome_checker.check_pending_outcomes()
         except Exception:
             pass
+        await asyncio.sleep(3600)
 
 
 @asynccontextmanager
@@ -330,6 +331,12 @@ async def get_symbol_accuracy(symbol: str):
         "multiplier": signal_db.get_confidence_multiplier(symbol, "transitional"),
     }
     return stats
+
+
+@app.get("/api/agent-stats")
+async def get_agent_stats():
+    """Per-agent accuracy stats — feeds the learning dashboard."""
+    return signal_db.get_agent_stats()
 
 
 @app.post("/api/check-outcomes")

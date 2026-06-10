@@ -459,6 +459,14 @@ export default function Dashboard() {
             <History size={11} />
             Storico
           </Link>
+          {/* Stats link */}
+          <Link
+            href="/stats"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1a2e48] text-[var(--text-2)] bg-[#0d1829] hover:border-violet-500/40 hover:text-white transition-all"
+          >
+            <BarChart2 size={11} />
+            Stats
+          </Link>
           {/* Notification bell */}
           <button
             onClick={() => setNotifOpen(o => !o)}
