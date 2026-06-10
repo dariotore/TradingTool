@@ -7,7 +7,7 @@ import {
   Wifi, WifiOff, TrendingDown, Minus,
   RefreshCw, Clock, Menu, X, History, AlertTriangle,
   Bell, Users, LayoutGrid, Star, EyeOff, Eye,
-  Briefcase, CalendarDays,
+  Briefcase, CalendarDays, BookOpen,
 } from "lucide-react";
 import AgentCard from "@/components/AgentCard";
 import SynthesisPanel from "@/components/SynthesisPanel";
@@ -576,6 +576,14 @@ export default function Dashboard() {
           >
             <CalendarDays size={11} />
             Calendario
+          </Link>
+          {/* Info link */}
+          <Link
+            href="/info"
+            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#1a2e48] text-[var(--text-2)] bg-[#0d1829] hover:border-sky-500/40 hover:text-white transition-all"
+          >
+            <BookOpen size={11} />
+            Guida
           </Link>
           {/* Notification bell */}
           <button
