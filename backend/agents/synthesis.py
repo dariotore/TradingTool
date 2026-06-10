@@ -98,16 +98,24 @@ def _forex_session_factor() -> float:
 async def run(symbol: str, agent_results: list[dict], market: str = "crypto") -> dict:
     results = {r["agent"]: r for r in agent_results if r.get("agent")}
 
+    # Regime must be known before weight selection (dynamic weights are regime-scoped)
+    td     = (results.get("technical") or {}).get("details", {})
+    adx    = td.get("adx", 20.0) or 20.0
+    regime = "trending" if adx > 25 else ("ranging" if adx < 20 else "transitional")
+
+    # Static weights first; override with learned per-agent weights when data is sufficient
     weights = _select_weights(results, market)
+    if LEARNING_AVAILABLE:
+        dyn_w = _sdb.get_dynamic_weights(symbol, regime, list(weights.keys()), market)
+        if dyn_w:
+            weights = dyn_w
+
     weighted_score = round(sum(
         results.get(name, {}).get("score", 0) * w
         for name, w in weights.items()
     ), 3)
 
     # ── Learning: get historical accuracy context ──────────────────
-    td      = (results.get("technical") or {}).get("details", {})
-    adx     = td.get("adx", 20.0) or 20.0
-    regime  = "trending" if adx > 25 else ("ranging" if adx < 20 else "transitional")
     history_summary = _sdb.get_recent_signal_summary(symbol) if LEARNING_AVAILABLE else None
     mult    = _sdb.get_confidence_multiplier(symbol, regime) if LEARNING_AVAILABLE else 1.0
     acc_stats = _sdb.get_accuracy_stats(symbol=symbol, regime=regime) if LEARNING_AVAILABLE else {}
@@ -160,7 +168,7 @@ async def run(symbol: str, agent_results: list[dict], market: str = "crypto") ->
             recommendation["confidence"] = round(recommendation["confidence"] * session_factor, 2)
             recommendation["reasoning"] += " [sessione asiatica: liquidità ridotta, confidenza abbassata]"
 
-    # ── Apply adaptive confidence multiplier ───────────────────────
+    # ── Apply adaptive confidence multiplier (regime-level) ────────
     if mult != 1.0 and recommendation["action"] not in ("HOLD", "AVOID"):
         old_conf = recommendation["confidence"]
         recommendation["confidence"] = min(0.95, round(old_conf * mult, 2))
@@ -168,6 +176,23 @@ async def run(symbol: str, agent_results: list[dict], market: str = "crypto") ->
             recommendation["reasoning"] += " [storico: accuracy bassa in questo regime, confidenza ridotta]"
         elif mult > 1.10:
             recommendation["reasoning"] += " [storico: accuracy elevata in questo regime, confidenza aumentata]"
+
+    # ── Action-specific multiplier (BUY vs SELL accuracy) ──────────
+    if LEARNING_AVAILABLE and recommendation["action"] not in ("HOLD", "AVOID"):
+        action_mult = _sdb.get_action_multiplier(symbol, recommendation["action"])
+        if action_mult != 1.0:
+            recommendation["confidence"] = min(0.95, round(recommendation["confidence"] * action_mult, 2))
+            direction = "BUY" if recommendation["action"] in ("BUY", "STRONG_BUY") else "SELL"
+            if action_mult < 0.90:
+                recommendation["reasoning"] += f" [storico {direction}: accuracy bassa, confidenza ridotta]"
+            elif action_mult > 1.10:
+                recommendation["reasoning"] += f" [storico {direction}: accuracy elevata, confidenza aumentata]"
+
+    # ── Minimum confidence gate: weak signals → HOLD ────────────────
+    if recommendation["action"] not in ("HOLD", "AVOID") and recommendation["confidence"] < 0.40:
+        recommendation["action"]     = "HOLD"
+        recommendation["confidence"] = round(recommendation["confidence"], 2)
+        recommendation["reasoning"] += " [confidenza insufficiente: segnale declassato a HOLD]"
 
     text_analysis = recommendation.pop("text_analysis", None) or _generate_text(symbol, results, recommendation)
 

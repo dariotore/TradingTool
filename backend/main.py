@@ -47,6 +47,7 @@ async def _outcome_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     signal_db.init_db()
+    _prev_recs.update(signal_db.load_prev_recs())
     await coin_registry.fetch_and_build_registry(limit=30)
     t1 = asyncio.create_task(analysis_loop())
     t2 = asyncio.create_task(forex_loop())
@@ -97,6 +98,7 @@ async def _notify_signals(new_data: dict, market: str, name_fn):
 
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
+    signal_db.save_prev_recs(_prev_recs)
 
 
 # ── Crypto ─────────────────────────────────────────────────────────
@@ -115,7 +117,7 @@ async def run_all_agents(symbol: str) -> dict:
     price = tech.get("details", {}).get("close") or fund.get("details", {}).get("current_price")
     change_24h = fund.get("details", {}).get("price_change_24h_pct")
     yahoo_sym  = symbol.replace("USDT", "") + "-USD"
-    signal_db.save_signal(symbol, yahoo_sym, "crypto", synth, tech.get("details") or {}, price)
+    signal_db.save_signal(symbol, yahoo_sym, "crypto", synth, tech.get("details") or {}, price, [fund, tech, n, r])
     return {
         "symbol": symbol,
         "price": price,
@@ -172,7 +174,7 @@ async def run_forex_agents(pair_id: str) -> dict:
     details = tech.get("details", {}) if not tech.get("error") else {}
     pair_info = forex_registry.get_by_id(pair_id)
     yahoo_sym = pair_info["yahoo"] if pair_info else pair_id
-    signal_db.save_signal(pair_id, yahoo_sym, "forex", synth, details, details.get("close"))
+    signal_db.save_signal(pair_id, yahoo_sym, "forex", synth, details, details.get("close"), [fund, tech, n, r, cot])
     return {
         "symbol": pair_id,
         "price": details.get("close"),

@@ -7,6 +7,7 @@ was correct. Accuracy statistics feed back into synthesis.py as a
 confidence multiplier — the system learns from its own track record.
 """
 import json
+import math
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,6 +55,20 @@ def init_db() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_sig_symbol    ON signals(symbol);
             CREATE INDEX IF NOT EXISTS idx_sig_timestamp ON signals(timestamp);
+            CREATE TABLE IF NOT EXISTS agent_signals (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                signal_id INTEGER NOT NULL,
+                agent     TEXT    NOT NULL,
+                score     REAL,
+                signal    TEXT,
+                FOREIGN KEY (signal_id) REFERENCES signals(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_ags_signal ON agent_signals(signal_id);
+            CREATE INDEX IF NOT EXISTS idx_ags_agent  ON agent_signals(agent);
+            CREATE TABLE IF NOT EXISTS state (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            );
         """)
         # Migrate existing DBs that pre-date the SL/TP columns
         for col, typ in [("stop_loss", "REAL"), ("take_profit", "REAL")]:
@@ -66,10 +81,12 @@ def init_db() -> None:
 # ── Write ────────────────────────────────────────────────────────────────────
 
 def save_signal(symbol: str, yahoo_symbol: str, market: str,
-                synth: dict, tech_details: dict, price: float | None) -> int:
+                synth: dict, tech_details: dict, price: float | None,
+                agent_results: list[dict] | None = None) -> int:
     """
     Persist a tradeable signal. Returns the row id or -1 if skipped.
     Skips HOLD/AVOID, zero-price entries, and duplicates within 30 min.
+    Optionally saves per-agent scores to agent_signals for dynamic weight learning.
     """
     action = synth.get("recommendation", "HOLD")
     if action in ("HOLD", "AVOID"):
@@ -112,7 +129,16 @@ def save_signal(symbol: str, yahoo_symbol: str, market: str,
             tech_details.get("candle_signal", "neutral"),
             json.dumps(tech_details),
         ))
-        return cur.lastrowid
+        row_id = cur.lastrowid
+        if agent_results:
+            for ag in agent_results:
+                ag_name = ag.get("agent", "")
+                if ag_name:
+                    c.execute(
+                        "INSERT INTO agent_signals (signal_id, agent, score, signal) VALUES (?,?,?,?)",
+                        (row_id, ag_name, ag.get("score", 0), ag.get("signal", "NEUTRAL")),
+                    )
+        return row_id
 
 
 def save_outcome(signal_id: int, period: str, price_at_check: float,
@@ -209,6 +235,125 @@ def get_confidence_multiplier(symbol: str, regime: str) -> float:
             elif acc < 0.70: return 1.10
             else:            return 1.20
     return 1.0
+
+
+def get_dynamic_weights(symbol: str, regime: str, agents: list[str],
+                        market: str = "crypto") -> dict | None:
+    """
+    Compute per-agent weights based on recency-decayed directional accuracy.
+    Each agent's signal direction is compared to the 24h price outcome independently.
+    Returns None when insufficient data — synthesis.py falls back to static weights.
+    Minimum 5 evaluated samples per agent required; at least half the agents must qualify.
+    """
+    now     = datetime.now(timezone.utc)
+    scores: dict[str, float | None] = {}
+
+    with _conn() as c:
+        for agent in agents:
+            rows = c.execute("""
+                SELECT s.timestamp, ag.signal, o.price_change_pct
+                FROM agent_signals ag
+                JOIN signals s  ON s.id  = ag.signal_id
+                JOIN outcomes o ON o.signal_id = s.id
+                WHERE ag.agent = ? AND s.symbol = ? AND s.regime = ?
+                  AND o.check_period = '24h' AND o.price_change_pct IS NOT NULL
+                  AND ag.signal NOT IN ('NEUTRAL','HOLD','AVOID')
+                ORDER BY s.timestamp DESC LIMIT 60
+            """, (agent, symbol, regime)).fetchall()
+
+            if len(rows) < 5:
+                # fallback: ignore regime filter
+                rows = c.execute("""
+                    SELECT s.timestamp, ag.signal, o.price_change_pct
+                    FROM agent_signals ag
+                    JOIN signals s  ON s.id  = ag.signal_id
+                    JOIN outcomes o ON o.signal_id = s.id
+                    WHERE ag.agent = ? AND s.symbol = ?
+                      AND o.check_period = '24h' AND o.price_change_pct IS NOT NULL
+                      AND ag.signal NOT IN ('NEUTRAL','HOLD','AVOID')
+                    ORDER BY s.timestamp DESC LIMIT 60
+                """, (agent, symbol)).fetchall()
+
+            if len(rows) < 5:
+                scores[agent] = None
+                continue
+
+            thr = 0.3  # minimum % move to count as directionally significant
+            w_correct = 0.0
+            w_total   = 0.0
+            for row in rows:
+                ts       = datetime.fromisoformat(row["timestamp"])
+                age_days = (now - ts).total_seconds() / 86400
+                decay    = math.exp(-age_days / 30)  # ~30-day half-life
+                pct      = float(row["price_change_pct"] or 0)
+                sig      = row["signal"]
+                is_bull  = sig in ("BUY", "STRONG_BUY")
+                correct  = (is_bull and pct > thr) or (not is_bull and pct < -thr)
+                w_total   += decay
+                w_correct += decay * (1 if correct else 0)
+
+            scores[agent] = w_correct / w_total if w_total > 0 else 0.5
+
+    # Need at least half the agents to have real data
+    missing = sum(1 for v in scores.values() if v is None)
+    if missing > len(agents) // 2:
+        return None
+
+    # Replace missing agents with neutral 0.5
+    filled = {k: (v if v is not None else 0.5) for k, v in scores.items()}
+
+    # Normalize: higher accuracy → more weight, floor at 0.05 to avoid starvation
+    total = sum(filled.values())
+    if total == 0:
+        return None
+    raw    = {k: max(0.05, v / total) for k, v in filled.items()}
+    rsum   = sum(raw.values())
+    return {k: round(v / rsum, 4) for k, v in raw.items()}
+
+
+def get_action_multiplier(symbol: str, action: str) -> float:
+    """
+    Direction-specific confidence multiplier: separate accuracy for BUY-type
+    and SELL-type signals on this symbol. Requires at least 8 evaluated samples.
+    """
+    is_buy  = action in ("BUY", "STRONG_BUY")
+    actions = ("BUY", "STRONG_BUY") if is_buy else ("SELL", "STRONG_SELL")
+    with _conn() as c:
+        row = c.execute("""
+            SELECT COUNT(*) AS total, SUM(o.direction_correct) AS correct
+            FROM outcomes o JOIN signals s ON s.id = o.signal_id
+            WHERE s.symbol = ? AND s.action IN (?, ?)
+              AND o.check_period = '24h' AND o.direction_correct IS NOT NULL
+        """, (symbol, *actions)).fetchone()
+    total   = row["total"] or 0
+    correct = int(row["correct"] or 0)
+    if total < 8:
+        return 1.0
+    acc = correct / total
+    if   acc < 0.35: return 0.70
+    elif acc < 0.45: return 0.85
+    elif acc < 0.55: return 1.00
+    elif acc < 0.65: return 1.10
+    else:            return 1.20
+
+
+def save_prev_recs(recs: dict) -> None:
+    """Persist _prev_recs so server restarts don't cause Telegram spam."""
+    with _conn() as c:
+        c.execute("INSERT OR REPLACE INTO state (key, value) VALUES ('prev_recs', ?)",
+                  (json.dumps(recs),))
+
+
+def load_prev_recs() -> dict:
+    """Restore _prev_recs from DB (empty dict if not found)."""
+    try:
+        with _conn() as c:
+            row = c.execute("SELECT value FROM state WHERE key='prev_recs'").fetchone()
+            if row:
+                return json.loads(row["value"])
+    except Exception:
+        pass
+    return {}
 
 
 def get_recent_signal_summary(symbol: str, n: int = 20) -> str | None:
