@@ -6,7 +6,7 @@ import {
   ArrowLeft, RefreshCw, TrendingUp, TrendingDown,
   DollarSign, Activity, Target, Briefcase,
   CheckCircle2, XCircle, Clock, X, Trophy,
-  AlertTriangle, BarChart2,
+  AlertTriangle, BarChart2, Filter,
 } from "lucide-react";
 
 import { getBackend } from "@/lib/backend";
@@ -166,7 +166,28 @@ function SlTpBar({ entry, sl, tp, direction }: {
   );
 }
 
+function FilterBtn({
+  active, onClick, children,
+}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all whitespace-nowrap ${
+        active
+          ? "bg-blue-500/15 text-blue-300 border-blue-500/30"
+          : "bg-transparent text-slate-500 border-[#1a2e48] hover:text-slate-300 hover:border-slate-600"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
+
+type MarketFilter = "all" | "crypto" | "forex";
+type ResultFilter = "all" | "win" | "loss";
+type DateFilter   = "all" | "today" | "7d" | "30d";
 
 export default function PortfolioPage() {
   const [summary,    setSummary]    = useState<Summary | null>(null);
@@ -176,12 +197,17 @@ export default function PortfolioPage() {
   const [closing,    setClosing]    = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // History filters
+  const [fMarket, setFMarket] = useState<MarketFilter>("all");
+  const [fResult, setFResult] = useState<ResultFilter>("all");
+  const [fDate,   setFDate]   = useState<DateFilter>("all");
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
       const [port, hist] = await Promise.all([
         fetch(`${BACKEND}/api/portfolio`).then(r => r.json()).catch(() => null),
-        fetch(`${BACKEND}/api/portfolio/history?limit=100`).then(r => r.json()).catch(() => []),
+        fetch(`${BACKEND}/api/portfolio/history?limit=200`).then(r => r.json()).catch(() => []),
       ]);
       if (port) { setSummary(port.summary); setOpen(port.open ?? []); }
       setHistory(Array.isArray(hist) ? hist : []);
@@ -208,25 +234,44 @@ export default function PortfolioPage() {
     } finally { setClosing(null); }
   }
 
-  // ── Computed extra stats ──────────────────────────────────────────────────
+  // ── Filters ───────────────────────────────────────────────────────────────
+
+  const filteredHistory = useMemo(() => {
+    const now = Date.now();
+    return history.filter(t => {
+      if (fMarket !== "all" && t.market !== fMarket) return false;
+      if (fResult === "win"  && t.pnl_usd <= 0) return false;
+      if (fResult === "loss" && t.pnl_usd > 0)  return false;
+      if (fDate !== "all") {
+        const age = now - new Date(t.close_time).getTime();
+        if (fDate === "today" && age > 86400000)    return false;
+        if (fDate === "7d"    && age > 7 * 86400000) return false;
+        if (fDate === "30d"   && age > 30 * 86400000) return false;
+      }
+      return true;
+    });
+  }, [history, fMarket, fResult, fDate]);
+
+  // ── Extra stats ───────────────────────────────────────────────────────────
 
   const extraStats = useMemo(() => {
     if (history.length === 0) return null;
-    const wins  = history.filter(t => t.pnl_usd > 0);
+    const wins   = history.filter(t => t.pnl_usd > 0);
     const losses = history.filter(t => t.pnl_usd <= 0);
     const totalWin  = wins.reduce((s, t) => s + t.pnl_usd, 0);
     const totalLoss = Math.abs(losses.reduce((s, t) => s + t.pnl_usd, 0));
     const profitFactor = totalLoss > 0 ? totalWin / totalLoss : wins.length > 0 ? 999 : 0;
     const avgWin  = wins.length  > 0 ? totalWin  / wins.length  : 0;
     const avgLoss = losses.length > 0 ? totalLoss / losses.length : 0;
-    const best  = history.reduce((m, t) => t.pnl_usd > m.pnl_usd ? t : m, history[0]);
-    const worst = history.reduce((m, t) => t.pnl_usd < m.pnl_usd ? t : m, history[0]);
-    return { profitFactor, avgWin, avgLoss, best, worst };
+    const best = history.reduce((m, t) => t.pnl_usd > m.pnl_usd ? t : m, history[0]);
+    return { profitFactor, avgWin, avgLoss, best };
   }, [history]);
 
   const totalPnl = summary?.total_pnl_usd ?? 0;
   const equity   = summary?.equity ?? 10000;
   const pnlPct   = ((equity - 10000) / 10000 * 100);
+
+  const filtersActive = fMarket !== "all" || fResult !== "all" || fDate !== "all";
 
   return (
     <div className="min-h-screen bg-[#070c18] text-white flex flex-col">
@@ -254,7 +299,7 @@ export default function PortfolioPage() {
 
       <div className="flex-1 overflow-auto px-4 py-5 max-w-6xl mx-auto w-full flex flex-col gap-5">
 
-        {/* ── Summary cards ──────────────────────────────────────────────────── */}
+        {/* ── Summary cards ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <StatCard
             label="Equity"
@@ -303,7 +348,7 @@ export default function PortfolioPage() {
           />
         </div>
 
-        {/* ── Extra stats row ─────────────────────────────────────────────────── */}
+        {/* ── Extra stats row ── */}
         {extraStats && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard
@@ -337,8 +382,8 @@ export default function PortfolioPage() {
           </div>
         )}
 
-        {/* ── Open positions ──────────────────────────────────────────────────── */}
-        <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl overflow-hidden">
+        {/* ── Open positions ── */}
+        <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl">
           <div className="px-4 py-3 border-b border-[#1a2e48] flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
             <span className="text-xs font-bold text-slate-200">Posizioni Aperte</span>
@@ -350,20 +395,19 @@ export default function PortfolioPage() {
           </div>
 
           {loading ? (
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[1,2,3,4].map(i => <div key={i} className="h-24 bg-[#1a2e48] rounded-xl animate-pulse" />)}
             </div>
           ) : open.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2">
               <Briefcase size={22} className="text-slate-700" />
-              <p className="text-[12px] text-slate-500 font-medium">Nessuna posizione aperta</p>
-              <p className="text-[10px] text-slate-600">Le posizioni si aprono automaticamente sui segnali BUY/SELL</p>
+              <p className="text-sm text-slate-500 font-medium">Nessuna posizione aperta</p>
+              <p className="text-xs text-slate-600">Le posizioni si aprono automaticamente sui segnali BUY/SELL</p>
             </div>
           ) : (
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {open.map(t => (
                 <div key={t.id} className="bg-[#080f1e] border border-[#1a2e48] rounded-xl p-3 flex flex-col gap-2 hover:border-[#243d60] transition-colors">
-                  {/* Header row */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-black text-white">{shortSym(t.symbol)}</span>
@@ -372,7 +416,6 @@ export default function PortfolioPage() {
                     <DirectionBadge dir={t.direction} />
                   </div>
 
-                  {/* Price row */}
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-[9px] text-slate-600 mb-0.5">Prezzo entrata</div>
@@ -384,10 +427,8 @@ export default function PortfolioPage() {
                     </div>
                   </div>
 
-                  {/* SL/TP bar */}
                   <SlTpBar entry={t.entry_price} sl={t.sl_price} tp={t.tp_price} direction={t.direction} />
 
-                  {/* Footer */}
                   <div className="flex items-center justify-between pt-1">
                     <div className="flex items-center gap-1 text-[10px] text-slate-600">
                       <Clock size={9} />
@@ -408,22 +449,84 @@ export default function PortfolioPage() {
           )}
         </div>
 
-        {/* ── Closed trades ───────────────────────────────────────────────────── */}
+        {/* ── Closed trades ── */}
         <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#1a2e48] flex items-center gap-2">
-            <CheckCircle2 size={13} className="text-slate-500" />
-            <span className="text-xs font-bold text-slate-200">Storico Trade</span>
-            <span className="ml-auto text-[10px] text-slate-600">{history.length} trade</span>
+
+          {/* Section header + filters */}
+          <div className="px-4 py-3 border-b border-[#1a2e48]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={13} className="text-slate-500" />
+                <span className="text-xs font-bold text-slate-200">Storico Trade</span>
+                {filtersActive && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/25 font-bold">
+                    filtrato
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-500">
+                {filteredHistory.length}
+                {filteredHistory.length !== history.length && ` / ${history.length}`}
+                {" "}trade
+              </span>
+            </div>
+
+            {/* Filter bar */}
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1">
+                <Filter size={10} className="text-slate-600" />
+                <span className="text-[10px] text-slate-600 font-semibold uppercase tracking-wide">Mercato</span>
+              </div>
+              <FilterBtn active={fMarket === "all"}    onClick={() => setFMarket("all")}>Tutti</FilterBtn>
+              <FilterBtn active={fMarket === "crypto"} onClick={() => setFMarket("crypto")}>Crypto</FilterBtn>
+              <FilterBtn active={fMarket === "forex"}  onClick={() => setFMarket("forex")}>Forex</FilterBtn>
+
+              <div className="w-px bg-[#1a2e48] mx-1" />
+
+              <FilterBtn active={fResult === "all"}  onClick={() => setFResult("all")}>Tutti</FilterBtn>
+              <FilterBtn active={fResult === "win"}  onClick={() => setFResult("win")}>
+                <span className="text-emerald-400">✓</span> Vinte
+              </FilterBtn>
+              <FilterBtn active={fResult === "loss"} onClick={() => setFResult("loss")}>
+                <span className="text-red-400">✗</span> Perse
+              </FilterBtn>
+
+              <div className="w-px bg-[#1a2e48] mx-1" />
+
+              <FilterBtn active={fDate === "all"}   onClick={() => setFDate("all")}>Tutto</FilterBtn>
+              <FilterBtn active={fDate === "today"} onClick={() => setFDate("today")}>Oggi</FilterBtn>
+              <FilterBtn active={fDate === "7d"}    onClick={() => setFDate("7d")}>7 giorni</FilterBtn>
+              <FilterBtn active={fDate === "30d"}   onClick={() => setFDate("30d")}>30 giorni</FilterBtn>
+
+              {filtersActive && (
+                <button
+                  onClick={() => { setFMarket("all"); setFResult("all"); setFDate("all"); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           </div>
 
           {loading ? (
             <div className="p-4 space-y-2">
               {[1,2,3,4,5].map(i => <div key={i} className="h-12 bg-[#1a2e48] rounded animate-pulse" />)}
             </div>
-          ) : history.length === 0 ? (
+          ) : filteredHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 gap-2">
               <XCircle size={22} className="text-slate-700" />
-              <p className="text-[12px] text-slate-500 font-medium">Nessun trade chiuso ancora</p>
+              <p className="text-sm text-slate-500 font-medium">
+                {history.length === 0 ? "Nessun trade chiuso ancora" : "Nessun risultato con questi filtri"}
+              </p>
+              {filtersActive && (
+                <button
+                  onClick={() => { setFMarket("all"); setFResult("all"); setFDate("all"); }}
+                  className="text-xs text-blue-400 hover:text-blue-300 underline mt-1"
+                >
+                  Rimuovi filtri
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-auto max-h-[520px]">
@@ -444,7 +547,7 @@ export default function PortfolioPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map(t => {
+                  {filteredHistory.map(t => {
                     const won    = t.pnl_usd > 0;
                     const reason = REASON_CFG[t.close_reason] ?? { label: t.close_reason, color: "text-slate-400", bg: "bg-slate-500/10", border: "border-slate-500/20" };
                     return (
@@ -452,7 +555,6 @@ export default function PortfolioPage() {
                         key={t.id}
                         className={`border-b border-[#0d1829] transition-colors ${won ? "hover:bg-emerald-500/[0.04]" : "hover:bg-red-500/[0.04]"}`}
                       >
-                        {/* Asset */}
                         <td className="px-3 py-2.5">
                           <div className="flex items-center gap-1.5">
                             <div className={`w-1 h-6 rounded-full shrink-0 ${won ? "bg-emerald-500/50" : "bg-red-500/50"}`} />
@@ -462,36 +564,29 @@ export default function PortfolioPage() {
                             </div>
                           </div>
                         </td>
-                        {/* Direction */}
                         <td className="px-3 py-2.5"><DirectionBadge dir={t.direction} /></td>
-                        {/* Prices */}
                         <td className="px-3 py-2.5 hidden sm:table-cell">
                           <div className="text-[10px] font-mono tabular text-slate-500">{fmtPrice(t.entry_price)}</div>
                           <div className="text-[10px] font-mono tabular text-slate-300">→ {fmtPrice(t.close_price)}</div>
                         </td>
-                        {/* P&L $ */}
                         <td className="px-3 py-2.5 text-right">
                           <span className={`text-[12px] font-bold tabular block ${won ? "text-emerald-400" : "text-red-400"}`}>
                             {won ? "+" : ""}${t.pnl_usd.toFixed(2)}
                           </span>
                         </td>
-                        {/* P&L % */}
                         <td className="px-3 py-2.5 text-right">
                           <span className={`text-[11px] font-semibold tabular ${won ? "text-emerald-400/80" : "text-red-400/80"}`}>
                             {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
                           </span>
                         </td>
-                        {/* Reason */}
                         <td className="px-3 py-2.5 hidden md:table-cell">
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${reason.bg} ${reason.color} ${reason.border}`}>
                             {reason.label}
                           </span>
                         </td>
-                        {/* Duration */}
                         <td className="px-3 py-2.5 hidden md:table-cell">
                           <span className="text-[10px] text-slate-500">{fmtDuration(t.open_time, t.close_time)}</span>
                         </td>
-                        {/* Date */}
                         <td className="px-3 py-2.5 text-right hidden lg:table-cell">
                           <span className="text-[10px] text-slate-600 whitespace-nowrap">{fmtDate(t.close_time)}</span>
                         </td>
@@ -501,19 +596,18 @@ export default function PortfolioPage() {
                 </tbody>
               </table>
 
-              {/* Win/Loss summary bar */}
-              {history.length > 0 && summary && (
+              {filteredHistory.length > 0 && summary && (
                 <div className="px-4 py-3 border-t border-[#1a2e48] flex items-center gap-3">
                   <div className="flex-1 h-1.5 rounded-full bg-[#0d1829] overflow-hidden flex">
                     <div
                       className="h-full bg-emerald-500/60 rounded-full transition-all"
-                      style={{ width: `${pct(summary.win_count, summary.closed_trades)}%` }}
+                      style={{ width: `${pct(filteredHistory.filter(t => t.pnl_usd > 0).length, filteredHistory.length)}%` }}
                     />
                   </div>
                   <span className="text-[10px] text-slate-500 shrink-0">
-                    <span className="text-emerald-400 font-bold">{summary.win_count}</span> vinte
+                    <span className="text-emerald-400 font-bold">{filteredHistory.filter(t => t.pnl_usd > 0).length}</span> vinte
                     {" / "}
-                    <span className="text-red-400 font-bold">{summary.loss_count}</span> perse
+                    <span className="text-red-400 font-bold">{filteredHistory.filter(t => t.pnl_usd <= 0).length}</span> perse
                   </span>
                 </div>
               )}
