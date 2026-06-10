@@ -39,7 +39,9 @@ echo "      Node.js: $(node --version) | npm: $(npm --version)"
 # ── 2. Python 3 + venv ────────────────────────────────────────────────────────
 echo -e "${GREEN}[2/7] Verifica Python...${NC}"
 if ! command -v python3 &>/dev/null; then
-    sudo apt-get install -y python3 python3-pip python3-venv
+    sudo apt-get install -y python3 python3-pip python3-venv python3.12-venv
+else
+    sudo apt-get install -y python3-venv python3.12-venv 2>/dev/null || true
 fi
 echo "      $(python3 --version)"
 
