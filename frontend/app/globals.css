@@ -27,6 +27,9 @@ html { scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 15% 90%, rgba(59,130,246,0.055) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 10%, rgba(16,185,129,0.04)  0%, transparent 70%);
   color: var(--text-1);
   font-family: var(--font-geist-sans, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
@@ -34,7 +37,7 @@ body {
 }
 
 /* ── Scrollbar ───────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #2e5080; }
@@ -45,9 +48,47 @@ body {
 /* ── Tabular numbers ─────────────────────────────────── */
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* ── Shimmer skeleton ────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #1a2e48 25%,
+    #243d5a 50%,
+    #1a2e48 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
 /* ── Gradient card top accent ────────────────────────── */
-.card-accent-green { border-top: 2px solid #10b981; }
-.card-accent-red   { border-top: 2px solid #ef4444; }
-.card-accent-amber { border-top: 2px solid #f59e0b; }
-.card-accent-slate { border-top: 2px solid #475569; }
-.card-accent-blue  { border-top: 2px solid #3b82f6; }
+/* These come after @import "tailwindcss" (outside any @layer),
+   so they have higher cascade priority than Tailwind utilities  */
+
+.card-accent-green {
+  border-top: 2px solid #10b981;
+  background: linear-gradient(168deg, rgba(16,185,129,0.08) 0%, #0e1b2e 38%);
+  box-shadow: 0 0 36px -14px rgba(16,185,129,0.22);
+}
+.card-accent-red {
+  border-top: 2px solid #ef4444;
+  background: linear-gradient(168deg, rgba(239,68,68,0.08) 0%, #0e1b2e 38%);
+  box-shadow: 0 0 36px -14px rgba(239,68,68,0.22);
+}
+.card-accent-amber {
+  border-top: 2px solid #f59e0b;
+  background: linear-gradient(168deg, rgba(245,158,11,0.08) 0%, #0e1b2e 38%);
+  box-shadow: 0 0 36px -14px rgba(245,158,11,0.14);
+}
+.card-accent-slate {
+  border-top: 2px solid #475569;
+  background: #0e1b2e;
+}
+.card-accent-blue {
+  border-top: 2px solid #3b82f6;
+  background: linear-gradient(168deg, rgba(59,130,246,0.08) 0%, #0e1b2e 38%);
+  box-shadow: 0 0 36px -14px rgba(59,130,246,0.22);
+}

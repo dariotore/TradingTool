@@ -58,7 +58,7 @@ echo Premi Ctrl+C per fermare il server
 echo.
 
 set BROWSER=none
-call npm run dev
+call npm run start
 
 if errorlevel 1 (
     echo.

@@ -58,8 +58,12 @@ export default function AgentCard({ title, data, icon }: AgentCardProps) {
   const error   = rawErr && rawErr.trim().length > 0 ? rawErr : null;
   const meta    = SIGNAL_META[signal] ?? SIGNAL_META.NEUTRAL;
 
-  const pct      = Math.round(((score + 1) / 2) * 100);
-  const barColor = score > 0.3 ? "bg-emerald-500" : score < -0.3 ? "bg-red-500" : "bg-amber-500";
+  const pct        = Math.round(((score + 1) / 2) * 100);
+  const barGradient = score > 0.3
+    ? "linear-gradient(90deg,#059669,#34d399)"
+    : score < -0.3
+    ? "linear-gradient(90deg,#dc2626,#f87171)"
+    : "linear-gradient(90deg,#d97706,#fbbf24)";
   const scoreColor = score > 0 ? "text-emerald-400" : score < 0 ? "text-red-400" : "text-slate-400";
 
   const rows = Object.entries(details)
@@ -69,7 +73,7 @@ export default function AgentCard({ title, data, icon }: AgentCardProps) {
   const isPartial = data !== null && !error && rows.length === 0;
 
   return (
-    <div className={`bg-[#0e1b2e] border border-[#1a2e48] rounded-xl flex flex-col overflow-hidden ${meta.accent}`}>
+    <div className={`border border-[#1a2e48] hover:border-[#203860] rounded-xl flex flex-col overflow-hidden transition-all duration-200 ${meta.accent}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2 text-[var(--text-2)] font-semibold text-xs uppercase tracking-wider">
@@ -113,8 +117,8 @@ export default function AgentCard({ title, data, icon }: AgentCardProps) {
               </div>
               <div className="relative h-1.5 rounded-full bg-[#1a2e48] overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-700 ${barColor}`}
-                  style={{ width: `${pct}%` }}
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${pct}%`, background: barGradient }}
                 />
               </div>
             </div>

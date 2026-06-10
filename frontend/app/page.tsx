@@ -225,9 +225,10 @@ export default function Dashboard() {
   const [notifEnabled,   setNotifEnabled] = useState(false);
   const prevRecsRef    = useRef<Record<string, string>>({});
   const notifIdCounter = useRef(0);
-  const wsRef        = useRef<WebSocket | null>(null);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mainRef      = useRef<HTMLDivElement | null>(null);
+  const wsRef          = useRef<WebSocket | null>(null);
+  const countdownRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mainRef        = useRef<HTMLDivElement | null>(null);
+  const refreshingRef  = useRef(false);
 
   const isForex = mode === "forex";
   const allData = isForex ? forexData : cryptoData;
@@ -254,16 +255,18 @@ export default function Dashboard() {
   }, []);
 
   const triggerRefresh = useCallback(async () => {
-    if (refreshing) return;
+    if (refreshingRef.current) return;
     setRefreshing(true);
+    refreshingRef.current = true;
     resetCountdown();
     const endpoint = isForex ? "/api/forex/refresh" : "/api/refresh";
     try {
       await fetch(`${API}${endpoint}`, { method: "POST" });
     } catch {
       setRefreshing(false);
+      refreshingRef.current = false;
     }
-  }, [refreshing, resetCountdown, isForex]);
+  }, [resetCountdown, isForex]);
 
   const handleSelect = useCallback((id: string) => {
     setActiveId(id);
@@ -281,14 +284,23 @@ export default function Dashboard() {
     const list = m === "forex" ? forexAssets : cryptoAssets;
     if (list.length > 0) setActiveId(list[0].id);
     setRefreshing(false);
+    refreshingRef.current = false;
   }, [forexAssets, cryptoAssets]);
 
   // ── Load metadata ─────────────────────────────────────────────
   useEffect(() => {
-    // Crypto coins
-    fetch(`${API}/api/coins`)
+    // `cancelled` prevents Strict-Mode double-invoke: the first mount is
+    // cleaned up immediately in dev, so any in-flight callbacks must be
+    // ignored — otherwise state updates fire twice and an extra WS
+    // reconnect spawns a zombie socket alongside the live one.
+    let cancelled = false;
+    const abort   = new AbortController();
+    const sig     = abort.signal;
+
+    fetch(`${API}/api/coins`, { signal: sig })
       .then(r => r.json())
       .then((list: { binance_symbol: string; symbol: string; name: string; market_cap_rank: number; price_change_24h: number | null }[]) => {
+        if (cancelled) return;
         const assets: AssetMeta[] = list.map(c => ({
           id: c.binance_symbol, symbol: c.symbol, name: c.name,
           rank: c.market_cap_rank, price_change_24h: c.price_change_24h,
@@ -298,10 +310,10 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    // Forex pairs
-    fetch(`${API}/api/forex/pairs`)
+    fetch(`${API}/api/forex/pairs`, { signal: sig })
       .then(r => r.json())
       .then((list: { id: string; base: string; quote: string; name: string; rank: number }[]) => {
+        if (cancelled) return;
         const assets: AssetMeta[] = list.map(p => ({
           id: p.id, symbol: `${p.base}/${p.quote}`, name: p.name,
           rank: p.rank, price_change_24h: null,
@@ -310,34 +322,51 @@ export default function Dashboard() {
       })
       .catch(() => {});
 
-    // Initial data
-    fetch(`${API}/api/data`).then(r => r.json()).then((d: AllData) => { if (Object.keys(d).length > 0) setCryptoData(d); }).catch(() => {});
-    fetch(`${API}/api/forex/data`).then(r => r.json()).then((d: AllData) => { if (Object.keys(d).length > 0) setForexData(d); }).catch(() => {});
+    fetch(`${API}/api/data`, { signal: sig })
+      .then(r => r.json())
+      .then((d: AllData) => { if (!cancelled && Object.keys(d).length > 0) setCryptoData(d); })
+      .catch(() => {});
+
+    fetch(`${API}/api/forex/data`, { signal: sig })
+      .then(r => r.json())
+      .then((d: AllData) => { if (!cancelled && Object.keys(d).length > 0) setForexData(d); })
+      .catch(() => {});
 
     function connect() {
+      if (cancelled) return;
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
-      ws.onopen = () => setConnected(true);
-      ws.onclose = () => { setConnected(false); setTimeout(connect, 3000); };
+      ws.onopen  = () => { if (!cancelled) setConnected(true); };
+      ws.onclose = () => {
+        if (!cancelled) setConnected(false);
+        if (!cancelled) setTimeout(connect, 3000);
+      };
       ws.onerror = () => ws.close();
       ws.onmessage = (e) => {
+        if (cancelled) return;
         try {
           const msg = JSON.parse(e.data);
           if (["refreshing", "forex_refreshing"].includes(msg.type)) {
             setRefreshing(true);
           } else if (msg.type === "update") {
             detectChanges(msg.data as AllData, "crypto");
+            refreshingRef.current = false;
             setCryptoData(msg.data); setLastUpdate(new Date()); setRefreshing(false); setCountdown(AUTO_REFRESH);
           } else if (msg.type === "forex_update") {
             detectChanges(msg.data as AllData, "forex");
+            refreshingRef.current = false;
             setForexData(msg.data); setLastUpdate(new Date()); setRefreshing(false); setCountdown(AUTO_REFRESH);
           }
         } catch {}
       };
     }
     connect();
-    return () => wsRef.current?.close();
-  }, []);
+    return () => {
+      cancelled = true;
+      abort.abort();
+      wsRef.current?.close();
+    };
+  }, [detectChanges]);
 
   useEffect(() => {
     countdownRef.current = setInterval(() => {
@@ -643,8 +672,8 @@ export default function Dashboard() {
                 <div className="p-4 md:p-5 flex flex-col gap-4">
 
                   {/* Chart + Synthesis */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div className="lg:col-span-2 bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:items-stretch">
+                    <div className="lg:col-span-2 bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4 flex flex-col">
                       <PriceChart symbol={chartSymbol} source={isForex ? "forex" : "binance"} />
                     </div>
                     <SynthesisPanel
