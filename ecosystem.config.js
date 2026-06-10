@@ -12,11 +12,11 @@ module.exports = {
 
       // ── Restart automatico ──────────────────────────────────────────────────
       autorestart: true,
-      // Backoff esponenziale: 100ms → 200 → 400 → ... → max 30s
-      // Evita loop di crash continui che consumano CPU
       exp_backoff_restart_delay: 100,
-      max_restarts: 999,      // nessun limite pratico
-      min_uptime: "5s",       // se crasha prima di 5s conta come restart instabile
+      max_restarts: 999,
+      min_uptime: "5s",
+      max_memory_restart: "256M",  // riavvio se Python supera 256MB
+      cron_restart: "0 4 * * *",   // riavvio preventivo ogni notte alle 04:00
 
       // ── Log ────────────────────────────────────────────────────────────────
       out_file:        path.join(root, "logs", "backend.log"),
@@ -37,6 +37,8 @@ module.exports = {
       exp_backoff_restart_delay: 100,
       max_restarts: 999,
       min_uptime: "5s",
+      max_memory_restart: "512M",  // riavvio se Next.js supera 512MB
+      cron_restart: "0 4 * * *",   // riavvio preventivo ogni notte alle 04:00
 
       env: {
         NODE_ENV: "production",

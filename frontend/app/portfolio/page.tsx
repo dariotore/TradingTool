@@ -6,7 +6,7 @@ import {
   ArrowLeft, RefreshCw, TrendingUp, TrendingDown,
   DollarSign, Activity, Target, Briefcase,
   XCircle, Clock, X, Trophy,
-  AlertTriangle, BarChart2, ChevronDown,
+  AlertTriangle, BarChart2, ChevronDown, ArrowUpDown,
 } from "lucide-react";
 
 import { getBackend } from "@/lib/backend";
@@ -35,6 +35,7 @@ type Summary = {
 type MarketFilter = "all" | "crypto" | "forex";
 type ResultFilter = "all" | "win" | "loss";
 type DateFilter   = "all" | "today" | "7d" | "30d";
+type SortMode     = "date_desc" | "date_asc" | "pnl_desc" | "pnl_asc";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,17 +79,9 @@ const REASON_CFG: Record<string, { label: string; color: string; bg: string }> =
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function Pill({ children, color }: { children: React.ReactNode; color: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold ${color}`}>
-      {children}
-    </span>
-  );
-}
-
 function MarketTag({ market }: { market: string }) {
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
       market === "crypto"
         ? "bg-blue-500/15 text-blue-400"
         : "bg-violet-500/15 text-violet-400"
@@ -113,27 +106,41 @@ function FilterChip({
   );
 }
 
-function SlTpRow({ entry, sl, tp, direction }: {
+function SlTpRow({ entry, sl, tp }: {
   entry: number; sl: number | null; tp: number | null; direction: string;
 }) {
   const slPct = sl ? Math.abs((sl - entry) / entry * 100) : null;
   const tpPct = tp ? Math.abs((tp - entry) / entry * 100) : null;
   return (
-    <div className="flex items-center gap-4 text-xs text-slate-500">
+    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
       {sl && (
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-red-500/60 shrink-0" />
+          <span className="w-1.5 h-1.5 rounded-sm bg-red-500/60 shrink-0" />
           SL {fmtPrice(sl)}
-          {slPct && <span className="text-red-400">−{slPct.toFixed(1)}%</span>}
+          {slPct && <span className="text-red-400/80">−{slPct.toFixed(1)}%</span>}
         </span>
       )}
       {tp && (
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-emerald-500/60 shrink-0" />
+          <span className="w-1.5 h-1.5 rounded-sm bg-emerald-500/60 shrink-0" />
           TP {fmtPrice(tp)}
-          {tpPct && <span className="text-emerald-400">+{tpPct.toFixed(1)}%</span>}
+          {tpPct && <span className="text-emerald-400/80">+{tpPct.toFixed(1)}%</span>}
         </span>
       )}
+    </div>
+  );
+}
+
+function StatCard({
+  label, icon, children,
+}: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">{label}</span>
+        <span className="text-slate-600">{icon}</span>
+      </div>
+      {children}
     </div>
   );
 }
@@ -150,6 +157,7 @@ export default function PortfolioPage() {
   const [fMarket,    setFMarket]    = useState<MarketFilter>("all");
   const [fResult,    setFResult]    = useState<ResultFilter>("all");
   const [fDate,      setFDate]      = useState<DateFilter>("all");
+  const [sortMode,   setSortMode]   = useState<SortMode>("date_desc");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -185,41 +193,71 @@ export default function PortfolioPage() {
 
   const filteredHistory = useMemo(() => {
     const now = Date.now();
-    return history.filter(t => {
+    let list = history.filter(t => {
       if (fMarket !== "all" && t.market !== fMarket) return false;
       if (fResult === "win"  && t.pnl_usd <= 0) return false;
       if (fResult === "loss" && t.pnl_usd > 0)  return false;
       if (fDate !== "all") {
         const age = now - new Date(t.close_time).getTime();
-        if (fDate === "today" && age > 86400000)        return false;
-        if (fDate === "7d"    && age > 7  * 86400000)   return false;
-        if (fDate === "30d"   && age > 30 * 86400000)   return false;
+        if (fDate === "today" && age > 86400000)      return false;
+        if (fDate === "7d"    && age > 7 * 86400000)  return false;
+        if (fDate === "30d"   && age > 30 * 86400000) return false;
       }
       return true;
     });
-  }, [history, fMarket, fResult, fDate]);
+
+    list = [...list].sort((a, b) => {
+      if (sortMode === "date_desc") return new Date(b.close_time).getTime() - new Date(a.close_time).getTime();
+      if (sortMode === "date_asc")  return new Date(a.close_time).getTime() - new Date(b.close_time).getTime();
+      if (sortMode === "pnl_desc")  return b.pnl_usd - a.pnl_usd;
+      if (sortMode === "pnl_asc")   return a.pnl_usd - b.pnl_usd;
+      return 0;
+    });
+
+    return list;
+  }, [history, fMarket, fResult, fDate, sortMode]);
 
   const stats = useMemo(() => {
     if (history.length === 0) return null;
-    const wins  = history.filter(t => t.pnl_usd > 0);
+    const wins   = history.filter(t => t.pnl_usd > 0);
     const losses = history.filter(t => t.pnl_usd <= 0);
     const totalWin  = wins.reduce((s, t) => s + t.pnl_usd, 0);
     const totalLoss = Math.abs(losses.reduce((s, t) => s + t.pnl_usd, 0));
     return {
       profitFactor: totalLoss > 0 ? totalWin / totalLoss : wins.length > 0 ? 999 : 0,
-      avgWin:  wins.length  > 0 ? totalWin  / wins.length  : 0,
+      avgWin:  wins.length   > 0 ? totalWin  / wins.length   : 0,
       avgLoss: losses.length > 0 ? totalLoss / losses.length : 0,
       best:    history.reduce((m, t) => t.pnl_usd > m.pnl_usd ? t : m, history[0]),
     };
   }, [history]);
 
-  const equity  = summary?.equity ?? 10000;
+  const equity   = summary?.equity ?? 10000;
   const totalPnl = summary?.total_pnl_usd ?? 0;
-  const pnlPct  = (equity - 10000) / 10000 * 100;
-  const winRate = summary?.win_rate ?? null;
+  const pnlPct   = (equity - 10000) / 10000 * 100;
+  const winRate  = summary?.win_rate ?? null;
   const filtersActive = fMarket !== "all" || fResult !== "all" || fDate !== "all";
-  const filteredWins  = filteredHistory.filter(t => t.pnl_usd > 0).length;
+  const filteredWins   = filteredHistory.filter(t => t.pnl_usd > 0).length;
   const filteredLosses = filteredHistory.filter(t => t.pnl_usd <= 0).length;
+  const filteredPnl    = filteredHistory.reduce((s, t) => s + t.pnl_usd, 0);
+
+  function resetFilters() { setFMarket("all"); setFResult("all"); setFDate("all"); }
+
+  function cycleSortMode() {
+    const next: Record<SortMode, SortMode> = {
+      date_desc: "date_asc",
+      date_asc:  "pnl_desc",
+      pnl_desc:  "pnl_asc",
+      pnl_asc:   "date_desc",
+    };
+    setSortMode(prev => next[prev]);
+  }
+
+  const sortLabel: Record<SortMode, string> = {
+    date_desc: "Data ↓",
+    date_asc:  "Data ↑",
+    pnl_desc:  "P&L ↓",
+    pnl_asc:   "P&L ↑",
+  };
 
   return (
     <div className="min-h-screen bg-[#070c18] text-white flex flex-col">
@@ -247,14 +285,14 @@ export default function PortfolioPage() {
 
       <div className="flex-1 px-4 py-5 max-w-5xl mx-auto w-full flex flex-col gap-5">
 
-        {/* ── Hero equity card ── */}
+        {/* ── Hero equity ── */}
         <div className={`rounded-2xl border p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${
           pnlPct >= 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
         }`}>
           <div className="flex-1">
             <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold mb-1">Capitale simulato</p>
             <div className="flex items-baseline gap-3 flex-wrap">
-              <span className={`text-4xl font-black tabular ${pnlPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              <span className={`text-4xl font-black tabular-nums ${pnlPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 ${equity.toLocaleString("en-US", { maximumFractionDigits: 0 })}
               </span>
               <span className={`text-lg font-bold ${pnlPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -264,7 +302,6 @@ export default function PortfolioPage() {
                 ({totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)})
               </span>
             </div>
-            {/* Progress bar: 0–20% range */}
             <div className="mt-3 h-1.5 rounded-full bg-[#1a2e48] overflow-hidden w-full max-w-xs">
               <div
                 className={`h-full rounded-full transition-all ${pnlPct >= 0 ? "bg-emerald-500/70" : "bg-red-500/70"}`}
@@ -274,14 +311,14 @@ export default function PortfolioPage() {
             <p className="text-[11px] text-slate-600 mt-1">Capitale iniziale $10.000</p>
           </div>
 
-          <div className="flex sm:flex-col gap-4 sm:gap-2 sm:text-right shrink-0">
+          <div className="flex sm:flex-col gap-6 sm:gap-2 sm:text-right shrink-0">
             <div>
               <p className="text-[10px] text-slate-600 uppercase tracking-wide">Trade chiusi</p>
-              <p className="text-xl font-bold text-white">{summary?.closed_trades ?? 0}</p>
+              <p className="text-2xl font-bold text-white">{summary?.closed_trades ?? 0}</p>
             </div>
             <div>
               <p className="text-[10px] text-slate-600 uppercase tracking-wide">Posizioni aperte</p>
-              <p className={`text-xl font-bold ${(summary?.open_trades ?? 0) > 0 ? "text-amber-400" : "text-slate-400"}`}>
+              <p className={`text-2xl font-bold ${(summary?.open_trades ?? 0) > 0 ? "text-amber-400" : "text-slate-400"}`}>
                 {summary?.open_trades ?? 0}
               </p>
             </div>
@@ -291,12 +328,7 @@ export default function PortfolioPage() {
         {/* ── Stats row ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
-          {/* Win Rate */}
-          <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Win Rate</span>
-              <Target size={14} className="text-slate-600" />
-            </div>
+          <StatCard label="Win Rate" icon={<Target size={14} />}>
             <p className={`text-2xl font-black ${
               winRate == null ? "text-slate-500" :
               winRate >= 60 ? "text-emerald-400" :
@@ -316,33 +348,21 @@ export default function PortfolioPage() {
                 </p>
               </>
             )}
-          </div>
+          </StatCard>
 
-          {/* P&L totale */}
-          <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">P&L Totale</span>
-              <Activity size={14} className="text-slate-600" />
-            </div>
+          <StatCard label="P&L Totale" icon={<Activity size={14} />}>
             <p className={`text-2xl font-black ${totalPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
               {totalPnl >= 0 ? "+" : ""}${Math.abs(totalPnl).toFixed(2)}
             </p>
             {stats && (
               <p className="text-[11px] text-slate-500 mt-2">
-                Guad. medio{" "}
-                <span className="text-emerald-400 font-semibold">+${stats.avgWin.toFixed(2)}</span>
-                {" "}· Perd.{" "}
-                <span className="text-red-400 font-semibold">−${stats.avgLoss.toFixed(2)}</span>
+                Guad.{" "}<span className="text-emerald-400 font-semibold">+${stats.avgWin.toFixed(2)}</span>
+                {" "}· Perd.{" "}<span className="text-red-400 font-semibold">−${stats.avgLoss.toFixed(2)}</span>
               </p>
             )}
-          </div>
+          </StatCard>
 
-          {/* Profit Factor */}
-          <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Profit Factor</span>
-              <BarChart2 size={14} className="text-slate-600" />
-            </div>
+          <StatCard label="Profit Factor" icon={<BarChart2 size={14} />}>
             <p className={`text-2xl font-black ${
               !stats ? "text-slate-500" :
               stats.profitFactor >= 1.5 ? "text-emerald-400" :
@@ -353,14 +373,9 @@ export default function PortfolioPage() {
                stats.profitFactor >= 1.5 ? "strategia redditizia" :
                stats.profitFactor >= 1   ? "in pareggio" : "in perdita"}
             </p>
-          </div>
+          </StatCard>
 
-          {/* Miglior trade */}
-          <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wide">Miglior trade</span>
-              <Trophy size={14} className="text-slate-600" />
-            </div>
+          <StatCard label="Miglior trade" icon={<Trophy size={14} />}>
             <p className="text-2xl font-black text-emerald-400">
               {stats ? `+$${stats.best.pnl_usd.toFixed(2)}` : "—"}
             </p>
@@ -369,11 +384,11 @@ export default function PortfolioPage() {
                 {shortSym(stats.best.symbol)} · {fmtDate(stats.best.close_time)}
               </p>
             )}
-          </div>
+          </StatCard>
         </div>
 
         {/* ── Open positions ── */}
-        <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl">
+        <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-[#1a2e48] flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
             <span className="text-sm font-bold text-white">Posizioni Aperte</span>
@@ -392,53 +407,50 @@ export default function PortfolioPage() {
             <div className="flex flex-col items-center justify-center py-12 gap-2">
               <Briefcase size={24} className="text-slate-700" />
               <p className="text-sm text-slate-500 font-medium">Nessuna posizione aperta</p>
-              <p className="text-xs text-slate-600">Le posizioni si aprono automaticamente sui segnali BUY/SELL</p>
+              <p className="text-xs text-slate-600">Le posizioni si aprono automaticamente sui segnali</p>
             </div>
           ) : (
             <div className="divide-y divide-[#1a2e48]">
               {open.map(t => {
                 const isBuy = t.direction === "BUY";
                 return (
-                  <div key={t.id} className="px-4 py-3.5 flex items-center gap-4 hover:bg-[#0a1628] transition-colors">
+                  <div key={t.id} className="px-4 py-3.5 flex items-start gap-3 hover:bg-[#0a1628] transition-colors">
 
-                    {/* Direction indicator */}
-                    <div className={`w-1 self-stretch rounded-full shrink-0 ${isBuy ? "bg-emerald-500/70" : "bg-red-500/70"}`} />
+                    {/* Direction bar */}
+                    <div className={`w-1 mt-1 self-stretch rounded-full shrink-0 min-h-[40px] ${isBuy ? "bg-emerald-500/70" : "bg-red-500/70"}`} />
 
-                    {/* Symbol */}
-                    <div className="w-32 shrink-0">
-                      <div className="flex items-center gap-2">
+                    {/* Main info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-base font-black text-white">{shortSym(t.symbol)}</span>
                         <MarketTag market={t.market} />
+                        <span className={`text-xs font-bold ${isBuy ? "text-emerald-400" : "text-red-400"}`}>
+                          {isBuy ? "↑ LONG" : "↓ SHORT"}
+                        </span>
                       </div>
-                      <span className={`text-xs font-bold ${isBuy ? "text-emerald-400" : "text-red-400"}`}>
-                        {isBuy ? "↑ LONG" : "↓ SHORT"}
-                      </span>
-                    </div>
-
-                    {/* Entry + SL/TP */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-white font-mono">{fmtPrice(t.entry_price)}</p>
+                      <div className="flex items-center gap-3 text-xs text-slate-400 mb-1">
+                        <span>Entrata <span className="font-mono text-white">{fmtPrice(t.entry_price)}</span></span>
+                        <span className="text-slate-600">·</span>
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <Clock size={10} />
+                          {fmtDuration(t.open_time)}
+                        </span>
+                      </div>
                       <SlTpRow entry={t.entry_price} sl={t.sl_price} tp={t.tp_price} direction={t.direction} />
                     </div>
 
-                    {/* Duration + size */}
-                    <div className="text-right shrink-0 hidden sm:block">
-                      <div className="flex items-center gap-1 text-xs text-slate-500 justify-end">
-                        <Clock size={10} />
-                        {fmtDuration(t.open_time)}
-                      </div>
+                    {/* Size + close */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
                       <p className="text-xs text-slate-600">${t.size_usd.toLocaleString()}</p>
+                      <button
+                        onClick={() => handleClose(t.id)}
+                        disabled={closing === t.id}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border border-red-500/30 text-red-400 hover:border-red-500/60 hover:bg-red-500/10 transition-all disabled:opacity-40"
+                      >
+                        <X size={10} />
+                        {closing === t.id ? "..." : "Chiudi"}
+                      </button>
                     </div>
-
-                    {/* Close button */}
-                    <button
-                      onClick={() => handleClose(t.id)}
-                      disabled={closing === t.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-500/30 text-red-400 hover:border-red-500/60 hover:bg-red-500/10 transition-all disabled:opacity-40 shrink-0"
-                    >
-                      <X size={11} />
-                      {closing === t.id ? "..." : "Chiudi"}
-                    </button>
                   </div>
                 );
               })}
@@ -446,29 +458,41 @@ export default function PortfolioPage() {
           )}
         </div>
 
-        {/* ── Closed trades ── */}
-        <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl">
+        {/* ── Storico ── */}
+        <div className="bg-[#0e1b2e] border border-[#1a2e48] rounded-xl overflow-hidden">
 
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-[#1a2e48]">
+          {/* Header + filtri */}
+          <div className="px-4 pt-3 pb-3 border-b border-[#1a2e48]">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-bold text-white">Storico Trade</span>
-              <span className="text-xs text-slate-500">
-                {filteredHistory.length}{filteredHistory.length !== history.length && ` / ${history.length}`} trade
-                {filtersActive && <span className="ml-2 text-blue-400 font-semibold">· filtrato</span>}
-              </span>
+              <div className="flex items-center gap-2">
+                {/* P&L filtrato */}
+                {filteredHistory.length > 0 && (
+                  <span className={`text-xs font-bold ${filteredPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {filteredPnl >= 0 ? "+" : ""}${filteredPnl.toFixed(2)}
+                  </span>
+                )}
+                <span className="text-xs text-slate-500">
+                  {filteredHistory.length}{filteredHistory.length !== history.length && ` / ${history.length}`}
+                </span>
+                {filtersActive && (
+                  <button onClick={resetFilters} className="text-[11px] text-red-400 hover:text-red-300 underline">
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Filters — three groups */}
+            {/* Filtri */}
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] text-slate-600 uppercase tracking-widest w-14 shrink-0">Mercato</span>
+                <span className="text-[10px] text-slate-600 uppercase tracking-widest w-12 shrink-0">Mercato</span>
                 <FilterChip active={fMarket === "all"}    onClick={() => setFMarket("all")}>Tutti</FilterChip>
                 <FilterChip active={fMarket === "crypto"} onClick={() => setFMarket("crypto")}>Crypto</FilterChip>
                 <FilterChip active={fMarket === "forex"}  onClick={() => setFMarket("forex")}>Forex</FilterChip>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] text-slate-600 uppercase tracking-widest w-14 shrink-0">Esito</span>
+                <span className="text-[10px] text-slate-600 uppercase tracking-widest w-12 shrink-0">Esito</span>
                 <FilterChip active={fResult === "all"}  onClick={() => setFResult("all")}>Tutti</FilterChip>
                 <FilterChip active={fResult === "win"}  onClick={() => setFResult("win")}>
                   <span className="text-emerald-400">✓</span>&nbsp;Vinte
@@ -478,43 +502,40 @@ export default function PortfolioPage() {
                 </FilterChip>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] text-slate-600 uppercase tracking-widest w-14 shrink-0">Periodo</span>
+                <span className="text-[10px] text-slate-600 uppercase tracking-widest w-12 shrink-0">Periodo</span>
                 <FilterChip active={fDate === "all"}   onClick={() => setFDate("all")}>Tutto</FilterChip>
                 <FilterChip active={fDate === "today"} onClick={() => setFDate("today")}>Oggi</FilterChip>
                 <FilterChip active={fDate === "7d"}    onClick={() => setFDate("7d")}>7 giorni</FilterChip>
                 <FilterChip active={fDate === "30d"}   onClick={() => setFDate("30d")}>30 giorni</FilterChip>
-                {filtersActive && (
-                  <button
-                    onClick={() => { setFMarket("all"); setFResult("all"); setFDate("all"); }}
-                    className="text-xs text-red-400 hover:text-red-300 underline ml-1"
-                  >
-                    Reset filtri
-                  </button>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Win/loss bar */}
+          {/* Win/loss bar + sort */}
           {filteredHistory.length > 0 && (
             <div className="px-4 py-2 border-b border-[#1a2e48] flex items-center gap-3">
-              <div className="flex-1 h-2 rounded-full bg-[#0d1829] overflow-hidden flex">
+              <div className="flex-1 h-1.5 rounded-full bg-[#0d1829] overflow-hidden">
                 <div
                   className="h-full bg-emerald-500/50 rounded-l-full"
                   style={{ width: `${pct(filteredWins, filteredHistory.length)}%` }}
                 />
               </div>
               <span className="text-xs text-slate-500 shrink-0">
-                <span className="text-emerald-400 font-bold">{filteredWins}</span> vinte ·{" "}
-                <span className="text-red-400 font-bold">{filteredLosses}</span> perse
-                {filteredHistory.length > 0 && (
-                  <span className="text-slate-600 ml-1">({pct(filteredWins, filteredHistory.length)}%)</span>
-                )}
+                <span className="text-emerald-400 font-bold">{filteredWins}W</span>{" "}
+                <span className="text-red-400 font-bold">{filteredLosses}L</span>
+                <span className="text-slate-600 ml-1">({pct(filteredWins, filteredHistory.length)}%)</span>
               </span>
+              <button
+                onClick={cycleSortMode}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold text-slate-400 border border-[#1a2e48] hover:border-slate-600 hover:text-slate-200 transition-all shrink-0"
+              >
+                <ArrowUpDown size={10} />
+                {sortLabel[sortMode]}
+              </button>
             </div>
           )}
 
-          {/* Trade list */}
+          {/* Lista trade */}
           {loading ? (
             <div className="p-4 space-y-2">
               {[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-[#1a2e48] rounded-xl animate-pulse" />)}
@@ -526,16 +547,13 @@ export default function PortfolioPage() {
                 {history.length === 0 ? "Nessun trade chiuso ancora" : "Nessun trade con questi filtri"}
               </p>
               {filtersActive && (
-                <button
-                  onClick={() => { setFMarket("all"); setFResult("all"); setFDate("all"); }}
-                  className="text-xs text-blue-400 hover:text-blue-300 underline mt-1"
-                >
+                <button onClick={resetFilters} className="text-xs text-blue-400 hover:text-blue-300 underline mt-1">
                   Rimuovi filtri
                 </button>
               )}
             </div>
           ) : (
-            <div className="divide-y divide-[#0d1829] overflow-auto max-h-[480px]">
+            <div className="divide-y divide-[#0d1829]">
               {filteredHistory.map(t => {
                 const won    = t.pnl_usd > 0;
                 const isBuy  = t.direction === "BUY";
@@ -546,44 +564,38 @@ export default function PortfolioPage() {
                     className={`px-4 py-3 flex items-center gap-3 transition-colors ${won ? "hover:bg-emerald-500/[0.03]" : "hover:bg-red-500/[0.03]"}`}
                   >
                     {/* Color bar */}
-                    <div className={`w-1 h-8 rounded-full shrink-0 ${won ? "bg-emerald-500/60" : "bg-red-500/60"}`} />
+                    <div className={`w-1 h-9 rounded-full shrink-0 ${won ? "bg-emerald-500/60" : "bg-red-500/60"}`} />
 
                     {/* Symbol + direction */}
-                    <div className="w-28 shrink-0">
-                      <div className="flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-sm font-bold text-white">{shortSym(t.symbol)}</span>
                         <MarketTag market={t.market} />
+                        <span className={`text-[11px] font-semibold ${isBuy ? "text-emerald-400" : "text-red-400"}`}>
+                          {isBuy ? "↑" : "↓"}
+                        </span>
+                        {/* Reason — always visible */}
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${reason.bg} ${reason.color}`}>
+                          {reason.label}
+                        </span>
                       </div>
-                      <span className={`text-[11px] font-semibold ${isBuy ? "text-emerald-400" : "text-red-400"}`}>
-                        {isBuy ? "↑ LONG" : "↓ SHORT"}
-                      </span>
-                    </div>
-
-                    {/* Prices */}
-                    <div className="hidden sm:block w-32 shrink-0">
-                      <p className="text-xs font-mono text-slate-500">{fmtPrice(t.entry_price)}</p>
-                      <p className="text-xs font-mono text-slate-300">→ {fmtPrice(t.close_price)}</p>
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-600 flex-wrap">
+                        <span className="font-mono">{fmtPrice(t.entry_price)} → {fmtPrice(t.close_price)}</span>
+                        <span>·</span>
+                        <span>{fmtDuration(t.open_time, t.close_time)}</span>
+                        <span>·</span>
+                        <span>{fmtDate(t.close_time)}</span>
+                      </div>
                     </div>
 
                     {/* P&L */}
-                    <div className="flex-1">
-                      <p className={`text-base font-black tabular ${won ? "text-emerald-400" : "text-red-400"}`}>
+                    <div className="text-right shrink-0">
+                      <p className={`text-base font-black tabular-nums ${won ? "text-emerald-400" : "text-red-400"}`}>
                         {won ? "+" : ""}${t.pnl_usd.toFixed(2)}
                       </p>
                       <p className={`text-xs ${won ? "text-emerald-400/70" : "text-red-400/70"}`}>
                         {t.pnl_pct >= 0 ? "+" : ""}{t.pnl_pct.toFixed(2)}%
                       </p>
-                    </div>
-
-                    {/* Reason */}
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-md shrink-0 hidden md:inline ${reason.bg} ${reason.color}`}>
-                      {reason.label}
-                    </span>
-
-                    {/* Duration + date */}
-                    <div className="text-right hidden lg:block shrink-0">
-                      <p className="text-xs text-slate-500">{fmtDuration(t.open_time, t.close_time)}</p>
-                      <p className="text-[11px] text-slate-600">{fmtDate(t.close_time)}</p>
                     </div>
                   </div>
                 );
