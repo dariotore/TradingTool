@@ -476,41 +476,54 @@ export default function HistoryPage() {
             </div>
 
             {/* Filters — always visible on desktop, collapsible on mobile */}
-            <div className={`flex-col gap-2 ${filtersOpen ? "flex" : "hidden md:flex"}`}>
-              <div className="flex items-center gap-2 flex-wrap">
-                <SlidersHorizontal size={11} className="text-[var(--text-3)] shrink-0 hidden md:block" />
-                {["all", "crypto", "forex"].map(m => (
-                  <button key={m} onClick={() => setMarket(m)}
-                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
-                      market === m ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-[var(--text-3)] border-transparent hover:border-[#1a2e48] hover:text-[var(--text-2)]"
-                    }`}>
-                    {m === "all" ? "Tutti" : m === "crypto" ? "Crypto" : "Forex"}
-                  </button>
-                ))}
-                <div className="w-px h-4 bg-[#1a2e48] mx-1" />
-                {["all", "STRONG_BUY", "BUY", "SELL", "STRONG_SELL"].map(a => (
-                  <button key={a} onClick={() => setAction(a)}
-                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
-                      action === a ? "bg-blue-500/15 text-blue-400 border-blue-500/30" : "text-[var(--text-3)] border-transparent hover:border-[#1a2e48] hover:text-[var(--text-2)]"
-                    }`}>
-                    {a === "all" ? "Tutte" : a === "STRONG_BUY" ? "Forte ↑" : a === "BUY" ? "Acquisto" : a === "STRONG_SELL" ? "Forte ↓" : "Vendita"}
-                  </button>
-                ))}
-                <div className="w-px h-4 bg-[#1a2e48] mx-1" />
-                {(["all", "today", "7d", "30d"] as const).map(d => (
-                  <button key={d} onClick={() => setDateRange(d)}
-                    className={`text-[10px] font-semibold px-2.5 py-1 rounded-md border transition-all ${
-                      dateRange === d ? "bg-violet-500/15 text-violet-400 border-violet-500/30" : "text-[var(--text-3)] border-transparent hover:border-[#1a2e48] hover:text-[var(--text-2)]"
-                    }`}>
-                    {d === "all" ? "Sempre" : d === "today" ? "Oggi" : d === "7d" ? "7gg" : "30gg"}
-                  </button>
-                ))}
+            <div className={`flex-col gap-1.5 ${filtersOpen ? "flex" : "hidden md:flex"}`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Mercato */}
+                <div className="flex items-center gap-0.5 bg-[#070c18]/60 rounded-lg p-0.5">
+                  {["all", "crypto", "forex"].map(m => (
+                    <button key={m} onClick={() => setMarket(m)}
+                      className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all ${
+                        market === m ? "bg-blue-500/20 text-blue-300 shadow-sm" : "text-slate-500 hover:text-slate-300"
+                      }`}>
+                      {m === "all" ? "Tutti" : m === "crypto" ? "₿ Crypto" : "€ Forex"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Segnale */}
+                <div className="flex items-center gap-0.5 bg-[#070c18]/60 rounded-lg p-0.5">
+                  {["all", "STRONG_BUY", "BUY", "SELL", "STRONG_SELL"].map(a => (
+                    <button key={a} onClick={() => setAction(a)}
+                      className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all ${
+                        action === a
+                          ? a.includes("BUY")  ? "bg-emerald-500/20 text-emerald-300"
+                          : a.includes("SELL") ? "bg-red-500/20 text-red-300"
+                          : "bg-blue-500/20 text-blue-300"
+                          : "text-slate-500 hover:text-slate-300"
+                      }`}>
+                      {a === "all" ? "Tutti" : a === "STRONG_BUY" ? "↑↑" : a === "BUY" ? "↑" : a === "STRONG_SELL" ? "↓↓" : "↓"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Periodo */}
+                <div className="flex items-center gap-0.5 bg-[#070c18]/60 rounded-lg p-0.5">
+                  {(["all", "today", "7d", "30d"] as const).map(d => (
+                    <button key={d} onClick={() => setDateRange(d)}
+                      className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all ${
+                        dateRange === d ? "bg-violet-500/20 text-violet-300" : "text-slate-500 hover:text-slate-300"
+                      }`}>
+                      {d === "all" ? "Sempre" : d === "today" ? "Oggi" : d === "7d" ? "7g" : "30g"}
+                    </button>
+                  ))}
+                </div>
+
                 {filtersActive && (
                   <button
                     onClick={() => { setSearch(""); setMarket("all"); setAction("all"); setDateRange("all"); }}
-                    className="text-[10px] text-[var(--text-3)] hover:text-white ml-auto underline underline-offset-2 transition-colors"
+                    className="text-[10px] text-red-400/70 hover:text-red-400 ml-1 transition-colors"
                   >
-                    Azzera
+                    ✕ Reset
                   </button>
                 )}
               </div>
